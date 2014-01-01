@@ -1,4 +1,4 @@
-KBANXDD ; VEN/SMH - Export the DD for VCS;2013-12-31  4:37 PM
+KBANXDD ; VEN/SMH - Export the DD for VCS;2013-12-31  4:57 PM
  ;;1.0;Sam's Local Utilities
  ;
 DRIVER ; Interactive Driver
@@ -67,12 +67,13 @@ D(FN) ; PEP ; Extract Data from a file; ONLY WORKS FOR WHOLE FILES, NOT SUBFILES
  N I F I=0:0 S I=$O(@G@(I)) Q:'I  D ZWRITE($NA(@G@(I)))
  QUIT
  ;
-PT(FN,NS) ; PEP ; Extract Print Templates
+PT(FN,NS,NM) ; PEP ; Extract Print Templates
  ; FN = File number
  ; NS = Namespace. Include these templates that start with these letters. Optional.
- ; ^DIPT("F11005","A1AE FULL SUMMARY BY DATE",1540)=1
- ; ^DIPT("F11005","A1AE PATCH COMPL/COMMENT RPT",1542)=1
- ; ^DIPT("F11005","A1AE PATCH COMPLIANCE PRT",1541)=1
+ ; NM = Name. Extract only the template with this name. Optional.
+ I $L(NM) D  QUIT
+ . N IEN S IEN=$O(^DIPT("B",NM,"")) Q:'IEN
+ . D ZWRITE($NA(^DIPT(IEN)),1,"IEN")
  S NS=$G(NS)
  N S S S="F"_+FN ; Loop sub
  N PTN S PTN=""
@@ -81,10 +82,40 @@ PT(FN,NS) ; PEP ; Extract Print Templates
  . D ZWRITE($NA(^DIPT(IEN)),1,"IEN")
  QUIT
  ;
+BT(FN,NS,NM) ; PEP ; Extract Sort Templates
+ ; FN = File number
+ ; NS = Namespace. Include these templates that start with these letters. Optional.
+ ; NM = Name. Extract only the template with this name. Optional.
+ I $L(NM) D  QUIT
+ . N IEN S IEN=$O(^DIBT("B",NM,"")) Q:'IEN
+ . D ZWRITE($NA(^DIBT(IEN)),1,"IEN")
+ S NS=$G(NS)
+ N S S S="F"_+FN ; Loop sub
+ N PTN S PTN=""
+ F  S PTN=$O(^DIBT(S,PTN)) Q:PTN=""  Q:($L(NS)&($E(NS,1,$L(NS))'=$E(PTN,1,$L(NS))))  D
+ . N IEN S IEN=$O(^(PTN,"")) 
+ . D ZWRITE($NA(^DIBT(IEN)),1,"IEN")
+ QUIT
+ ;
+ET(FN,NS,NM) ; PEP ; Extract Input Templates
+ ; FN = File number
+ ; NS = Namespace. Include these templates that start with these letters. Optional.
+ ; NM = Name. Extract only the template with this name. Optional.
+ I $L(NM) D  QUIT
+ . N IEN S IEN=$O(^DIE("B",NM,"")) Q:'IEN
+ . D ZWRITE($NA(^DIE(IEN)),1,"IEN")
+ S NS=$G(NS)
+ N S S S="F"_+FN ; Loop sub
+ N PTN S PTN=""
+ F  S PTN=$O(^DIE(S,PTN)) Q:PTN=""  Q:($L(NS)&($E(NS,1,$L(NS))'=$E(PTN,1,$L(NS))))  D
+ . N IEN S IEN=$O(^(PTN,"")) 
+ . D ZWRITE($NA(^DIE(IEN)),1,"IEN")
+ QUIT
+ ;
 ZWRITE(NAME,QS,QSREP)	; Replacement for ZWRITE ; Public Proc
  ; Pass NAME by name as a closed reference. lvn and gvn are both supported.
- ; QS = Query Subscript to replace
- ; QSREP = Query Subscrpt replacement
+ ; QS = Query Subscript to replace. Optional.
+ ; QSREP = Query Subscrpt replacement. Optional, but must be passed if QS is.
  ; : syntax is not supported (yet)
  S QS=$G(QS),QSREP=$G(QSREP)
  I QS,'$L(QSREP) S $EC=",U-INVALID-PARAMETERS,"
