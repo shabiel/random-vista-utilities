@@ -1,4 +1,4 @@
-KBANXDD ; VEN/SMH - Export the DD for VCS;2013-12-31  4:57 PM
+KBANXDD ; VEN/SMH - Export the DD for VCS;2014-03-23  9:44 PM
  ;;1.0;Sam's Local Utilities
  ;
 DRIVER ; Interactive Driver
@@ -43,14 +43,14 @@ X(FN) ; PEP ; Export A File Number's DD
  ; Output: DD printed to STDOUT
  N G S G=$NA(^DIC(FN)) I $D(@G) N S F S=0,"%","%D" D ZWRITE($NA(@G@(S))) ; Print DIC File Info if it exists
  S G=$NA(^DD(FN)) D ZWRITE(G) ; Print the DD; TODO: prints indexes too!
- N I F I=0:0 S I=$O(^DD("IX","B",FN,I)) Q:'I  D ZWRITE($NA(^DD("IX",I))) ; Print NS Indexes
- N I F I=0:0 S I=$O(^DD("KEY","B",FN,I)) Q:'I  D ZWRITE($NA(^DD("KEY",I))) ; Print Keys
+ N I F I=0:0 S I=$O(^DD("IX","B",FN,I)) Q:'I  D ZWRITE($NA(^DD("IX",I)),2,"IEN") ; Print NS Indexes
+ N I F I=0:0 S I=$O(^DD("KEY","B",FN,I)) Q:'I  D ZWRITE($NA(^DD("KEY",I)),2,"IEN") ; Print Keys
  ;
  ; Print subfiles DDs etc
  I $D(^DD(FN,"SB")) N SB F SB=0:0 S SB=$O(^DD(FN,"SB",SB)) Q:'SB  D  ; For each Subfile
  . D ZWRITE($NA(^DD(SB))) ; Print Subfiles; TODO: prints indexes too!
- . N I F I=0:0 S I=$O(^DD("IX","B",SB,I)) Q:'I  D ZWRITE($NA(^DD("IX",I))) ; Print NS Indexes
- . N I F I=0:0 S I=$O(^DD("KEY","B",SB,I)) Q:'I  D ZWRITE($NA(^DD("KEY",I))) ; Print Keys
+ . N I F I=0:0 S I=$O(^DD("IX","B",SB,I)) Q:'I  D ZWRITE($NA(^DD("IX",I)),2,"IEN") ; Print NS Indexes
+ . N I F I=0:0 S I=$O(^DD("KEY","B",SB,I)) Q:'I  D ZWRITE($NA(^DD("KEY",I)),2,"IEN") ; Print Keys
  ;
  QUIT
  ;
@@ -58,8 +58,8 @@ XF(FN,FLD) ; PEP ; Extract a field's DD
  ; Input: File Number and Field Number
  ; Don't print the ^DIC section
  D ZWRITE($NA(^DD(FN,FLD))) ; Print the DD for this field.
- N I F I=0:0 S I=$O(^DD("IX","F",FN,FLD,I)) Q:'I  D ZWRITE($NA(^DD("IX",I)))
- N I F I=0:0 S I=$O(^DD("KEY","F",FN,FLD,I)) Q:'I  D ZWRITE($NA(^DD("KEY",I)))
+ N I F I=0:0 S I=$O(^DD("IX","F",FN,FLD,I)) Q:'I  D ZWRITE($NA(^DD("IX",I)),2,"IEN")
+ N I F I=0:0 S I=$O(^DD("KEY","F",FN,FLD,I)) Q:'I  D ZWRITE($NA(^DD("KEY",I)),2,"IEN")
  QUIT
  ;
 D(FN) ; PEP ; Extract Data from a file; ONLY WORKS FOR WHOLE FILES, NOT SUBFILES
@@ -78,7 +78,7 @@ PT(FN,NS,NM) ; PEP ; Extract Print Templates
  N S S S="F"_+FN ; Loop sub
  N PTN S PTN=""
  F  S PTN=$O(^DIPT(S,PTN)) Q:PTN=""  Q:($L(NS)&($E(NS,1,$L(NS))'=$E(PTN,1,$L(NS))))  D
- . N IEN S IEN=$O(^(PTN,"")) 
+ . N IEN S IEN=$O(^(PTN,""))
  . D ZWRITE($NA(^DIPT(IEN)),1,"IEN")
  QUIT
  ;
@@ -93,7 +93,7 @@ BT(FN,NS,NM) ; PEP ; Extract Sort Templates
  N S S S="F"_+FN ; Loop sub
  N PTN S PTN=""
  F  S PTN=$O(^DIBT(S,PTN)) Q:PTN=""  Q:($L(NS)&($E(NS,1,$L(NS))'=$E(PTN,1,$L(NS))))  D
- . N IEN S IEN=$O(^(PTN,"")) 
+ . N IEN S IEN=$O(^(PTN,""))
  . D ZWRITE($NA(^DIBT(IEN)),1,"IEN")
  QUIT
  ;
@@ -108,7 +108,7 @@ ET(FN,NS,NM) ; PEP ; Extract Input Templates
  N S S S="F"_+FN ; Loop sub
  N PTN S PTN=""
  F  S PTN=$O(^DIE(S,PTN)) Q:PTN=""  Q:($L(NS)&($E(NS,1,$L(NS))'=$E(PTN,1,$L(NS))))  D
- . N IEN S IEN=$O(^(PTN,"")) 
+ . N IEN S IEN=$O(^(PTN,""))
  . D ZWRITE($NA(^DIE(IEN)),1,"IEN")
  QUIT
  ;
@@ -123,14 +123,14 @@ ZWRITE(NAME,QS,QSREP)	; Replacement for ZWRITE ; Public Proc
  I $L(QSREP) S INCEXPN="S $G("_QSREP_")="_QSREP_"+1"
  N L S L=$L(NAME) ; Name length
  I $E(NAME,L-2,L)=",*)" S NAME=$E(NAME,1,L-3)_")" ; If last sub is *, remove it and close the ref
- N ORIGLAST S ORIGLAST=$QS(NAME,$QL(NAME))       ; Get last subscript upon which we can't loop further
+ N ORIGNAME S ORIGNAME=NAME          ; 
  N ORIGQL S ORIGQL=$QL(NAME)         ; Number of subscripts in the original name
  I $D(@NAME)#2 W $S(QS:$$SUBNAME(NAME,QS,QSREP),1:NAME),"=",$$FORMAT(@NAME),!        ; Write base if it exists
  ; $QUERY through the name. 
  ; Stop when we are out.
  ; Stop when the last subscript of the original name isn't the same as 
  ; the last subscript of the Name. 
- F  S NAME=$Q(@NAME) Q:NAME=""  Q:$QS(NAME,ORIGQL)'=ORIGLAST  D
+ F  S NAME=$Q(@NAME) Q:NAME=""  Q:$NA(@ORIGNAME,ORIGQL)'=$NA(@NAME,ORIGQL)  D
  . W $S(QS:$$SUBNAME(NAME,QS,QSREP),1:NAME),"=",$$FORMAT(@NAME),!
  QUIT
  ;
