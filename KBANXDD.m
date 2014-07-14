@@ -60,6 +60,7 @@ XF(FN,FLD) ; PEP ; Extract a field's DD
  D ZWRITE($NA(^DD(FN,FLD))) ; Print the DD for this field.
  N I F I=0:0 S I=$O(^DD("IX","F",FN,FLD,I)) Q:'I  D ZWRITE($NA(^DD("IX",I)),2,"IEN")
  N I F I=0:0 S I=$O(^DD("KEY","F",FN,FLD,I)) Q:'I  D ZWRITE($NA(^DD("KEY",I)),2,"IEN")
+ I +$P(^DD(FN,FLD,0),U,2) D X(+$P(^(0),U,2))
  QUIT
  ;
 D(FN) ; PEP ; Extract Data from a file; ONLY WORKS FOR WHOLE FILES, NOT SUBFILES
@@ -112,7 +113,7 @@ ET(FN,NS,NM) ; PEP ; Extract Input Templates
  . D ZWRITE($NA(^DIE(IEN)),1,"IEN")
  QUIT
  ;
-ZWRITE(NAME,QS,QSREP)	; Replacement for ZWRITE ; Public Proc
+ZWRITE(NAME,QS,QSREP) ; Replacement for ZWRITE ; Public Proc
  ; Pass NAME by name as a closed reference. lvn and gvn are both supported.
  ; QS = Query Subscript to replace. Optional.
  ; QSREP = Query Subscrpt replacement. Optional, but must be passed if QS is.
@@ -141,7 +142,7 @@ SUBNAME(N,QS,QSREP) ; Substitue subscript QS's value with QSREP in name referenc
  N AF S AF=$P(N,B4,2,99) ; After sub piece
  QUIT VAROR_QSREP_AF
  ;
-FORMAT(V)	; Add quotes, replace control characters if necessary; Public $$
+FORMAT(V) ; Add quotes, replace control characters if necessary; Public $$
  ;If numeric, nothing to do.
  ;If no encoding required, then return as quoted string.
  ;Otherwise, return as an expression with $C()'s and strings.
@@ -158,12 +159,12 @@ FORMAT(V)	; Add quotes, replace control characters if necessary; Public $$
  . N L S L=$L(V) S:$E(V,L-2,L)="_""""" $E(V,L-2,L)="" ; Replace doubled up quotes at end
  Q QT_V_QT ; If no control charactrrs, quit with "V"
  ;
-CCC(S)	;test if S Contains a Control Character or $C(255); Public $$
+CCC(S) ;test if S Contains a Control Character or $C(255); Public $$
  Q:S?.E1C.E 1
  Q:$F(S,$C(255)) 1
  Q 0
  ;
-RCC(NA)	;Replace control chars in NA with $C( ). Returns encoded string; Public $$
+RCC(NA) ;Replace control chars in NA with $C( ). Returns encoded string; Public $$
  Q:'$$CCC(NA) NA                         ;No embedded ctrl chars
  N OUT S OUT=""                          ;holds output name
  N CC S CC=0                             ;count ctrl chars in $C(
