@@ -1,0 +1,674 @@
+Cache for Windows^INT^FROM GEORGE TIMSON^~Format=Cache.S~^RAW
+%RO on 12 Jun 2014  10:09 AM
+%^INT^1^^
+% ;GFT/MSC  ROUTINE UTILITIES  --- ROUCI, COMPARE, IN, OUT, ONE, VER, BUILD, DD ;1MAY2014
+ ;;1.6;MSC;**MSC,1600**;
+ ;
+ROUCI ;Compare across UCI's
+ N X,I,Y,DITCPUCI,DIR,DITCPZN,XPDI,MSCL,MSCR,HERE,MSCZ
+ D DITCPZN
+ S DIR(0)="F^1:90",DIR("A")="Compare routine(s) to what UCI",DIR("B")=$G(^DOPT("DITCPUCI",DUZ)) D ^DIR
+ Q:U[X  X ^%ZOSF("UCICHECK") Q:0[Y  S ^DOPT("DITCPUCI",DUZ)=X,MSCR=X
+ X ^%ZOSF("RSEL") Q:$O(^UTILITY($J,0))=""  ;Select routines
+ S XPDI=+$G(^(0)) I 'XPDI S X=0 F  S X=$O(^UTILITY($J,X)) Q:X=""  S XPDI=XPDI+1 ;RSEL MAY NOT COUNT 'EM FOR US
+ D START(MSCL,MSCR,XPDI_" ROUTINE"_$E("S",XPDI>1)) Q:IO="" 
+ S XPDI=0 F  S XPDI=$O(^UTILITY($J,XPDI)) Q:XPDI=""  D ROUTINE(XPDI)
+ G CLOSE^DIO4
+ ;
+ ;
+ ;
+ ;
+COMPARE ;GT.M FILES OR A CACHE .RSA FILE
+ D DT^DICRW
+ N SPEC,LIST,POP,%ZIS,OUT,OUTIOM,DIR,RSA,GTM S %ZIS("A")="Output Device: " D ^%ZIS Q:POP
+ S OUT=IO,OUTIOM=IOM,PATH=$$PATH Q:PATH=""
+ S SPEC("*")="" Q:'$$LIST^%ZISH(PATH,"SPEC","LIST")
+ S LIST="",Y=0,RSA="" F  S LIST=$O(LIST(LIST)) Q:LIST=""  S:LIST?.E1".m" GTM=1 I LIST?.E1(1".RSA",1".rsa",1".ro") S Y=Y+1,RSA=RSA_Y_":"_LIST_";"
+ K LIST,SPEC,^TMP("%",$J)
+ G:'$D(GTM) RSA G ASKC:RSA=""
+ S DIR(0)="S^1:CACHE FORMAT (.RSA);2:GT.M FORMAT (.m)",DIR("A")="Which kind of routines" D ^DIR G ASKC:Y=2,RSA:Y=1,ENDC
+ASKC U $P W !! S DIR(0)="FO^1:17",DIR("A")="Routine NAME or NAMESPACE* to compare against "_PATH,POP=0 D ^DIR
+ W ! I Y?1"%".E S $E(Y)="_"
+ I U[Y G ENDC
+ S POP=1 I Y'?.E1"*" D CMP(Y) G ASKC
+ S SPEC(Y)="" I $$LIST^%ZISH(PATH,"SPEC","LIST")
+ S LIST="" F  S LIST=$O(LIST(LIST)) Q:LIST=""  I LIST?1(1A,1"_").E1(1".M",1".m") D CMP($P(LIST,"."))
+ENDC S IO=OUT K POP D ^%ZISC Q
+ ;
+ ;
+ ;
+CMP(X) ;X is ROUTINE NAME (but with '_' instead of '%')
+ N F,POP,T,L,F,Y
+ S F=X_".m" D OPEN^%ZISH("GFT",PATH,F,"R") Q:POP
+ K ^TMP($J)
+ I '$$FTG^%ZISH(PATH,F,$NA(^TMP($J,1,1,0)),3) Q  ;BRING EXTERNAL ROUTINE INTO ^UTILITY($J,1)
+ F T=1:1 Q:'$D(^TMP($J,1,T,0))  S ^(0)=$$TRIM(^(0))
+ I X?1"_".E S $E(X)="%"
+ D CMP1(X) Q
+ ;
+CMP1(X) ;^TMP($J,1) already has incoming routine
+ F T=1:1 S L=$T(+T^@X) Q:L=""  S ^TMP($J,2,T,0)=$$TRIM(L)
+ U $P D:$I'=OUT  N IOM S IO=OUT,IOM=OUTIOM U IO D
+ .X ^%ZOSF("UCI") S Y=$P($G(Y),",") S:Y]"" Y="'"_Y_"'"
+ .I T=1 W !!,X_" IS NOT IN THIS UCI"
+ I T>1 N DITCPT S DITCPT(-1)="" D CPL($NA(^TMP($J,1)),$NA(^TMP($J,2)),"'"_PATH_X_"'"_$J("",IOM\2-$L(Y)-$L(X))_Y)
+ U $P Q
+ ;
+TRIM(X) S X=$TR(X,$C(9)," ") ;CHANGE TABS TO SPACES
+ Q X
+ ;
+ ;
+RSA  G ENDC:RSA="" S DIR(0)="SA^"_RSA,DIR("A")="Cache routine set to compare: " D ^DIR W !!
+ Q:'Y  S LIST=$P($P(DIR(0),+Y_":",2),";") D OPEN^%ZISH("GFT",PATH,LIST,"R") Q:POP  Q:'$$FTG^%ZISH(PATH,LIST,$NA(^TMP("%",$J,1,0)),3)
+ S LIST=2,X="",Y=0 K ^TMP($J)
+ F  S LIST=LIST+1 Q:'$D(^TMP("%",$J,LIST,0))  D
+ .S POP=^(0) I $P(POP,U)?1(1A,1"%").AN D RSAF S X=$P(POP,U) Q  ;is this the beginning of a new routine?
+ .I POP?1"<Routine name=".E D RSAF S X=$P(POP,"""",2) Q  ;or maybe in this format:<Routine name="PSBOMH" type="INT" languagemode="0" timestamp="62733,36905"><![CDATA[
+ .I $P(POP," ")[$C(9) S $P(POP," ")=$TR($P(POP," "),$C(9)," ") ;does it have a TAB as line start?
+ .S Y=Y+1,^TMP($J,1,Y)=POP ;add one routine line to the 'left side'
+ D RSAF G ENDC
+ ;
+RSAF Q:X=""
+ F Y=Y:-1:1 I $L(^TMP($J,1,Y))=0 K ^(Y) ;remove null lines at end of previous routine
+ D CMP1(X) K ^TMP($J) S Y=0 Q
+ ;
+ ;
+ ;
+ ;
+PATH(OUT) S PATH=$G(^DISV(DUZ,"%PATH"))
+ N DIR S DIR(0)="F",DIR("A")=$P("INPUT^OUTPUT",U,$G(OUT)+1)_" PATH",DIR("B")=PATH
+ D ^DIR
+ I Y["\" S:$E(Y,$L(Y))'="\" Y=Y_"\" S ^DISV(DUZ,"%PATH")=Y Q Y
+ I Y["/" S:$E(Y,$L(Y))'="/" Y=Y_"/" S ^DISV(DUZ,"%PATH")=Y Q Y
+ Q PATH
+ ;
+ ;
+ ;
+ ;
+ ;
+ ;
+OUT ;To GT.M FILES
+ D DT^DICRW
+ S PATH=$$PATH(1) Q:PATH=""
+ X ^%ZOSF("RSEL")
+ W !! S X=0 F  S X=$O(^UTILITY($J,X)) Q:X=""  D
+ .F T=1:1 S L=$T(+T^@X) Q:L=""  S ^UTILITY($J,X,T)=L
+ .S NAME=X I X?1"%".E S $E(NAME)="_"
+ .I $$GTF^%ZISH($NA(^UTILITY($J,X,1)),3,PATH,NAME_".m") U $P W " ",X," "
+ U $P Q
+ ;
+ ;
+ ;
+ ;
+IN ;From GT.M FILES
+ D DT^DICRW
+ N DIR
+ S PATH=$$PATH Q:PATH=""
+ I '$D(ZS) S ZS=^DD("OS",^DD("OS"),"ZS")
+ASKIN S DIR(0)="FO^1:15",DIR("A")="ROUTINE NAME or NAMESPACE TO LOAD" D ^DIR
+ I Y?1"%".E S $E(Y)="_"
+ Q:Y=""
+ I Y'?.E1"*" D LOAD(Y) G ASKIN
+ N SPEC,LIST S SPEC(Y)="" I $$LIST^%ZISH(PATH,"SPEC","LIST") S LIST="" F  S LIST=$O(LIST(LIST)) Q:LIST=""  I LIST?1U.E1(1".M",1".m") D LOAD($P(LIST,"."))
+ Q
+ ;
+LOAD(X) ;X is ROUTINE NAME (but with '_' instead of '%')
+ N F,POP,IO
+ S F=X_".m" D OPEN^%ZISH("GFT",PATH,F,"R")
+ I POP Q
+ K ^UTILITY($J,0)
+ I '$$FTG^%ZISH(PATH,F,$NA(^UTILITY($J,0,1)),3) Q
+ I X?1"_".E S $E(X)="%"
+ X ZS U $P W " ",X," "
+ Q
+ ;
+ ;
+ ;
+ ;
+VER ;FIND WHICH VERSION NUMBERS ARE ON SECOND LINES
+ N X
+ W "Calculate version numbers for what"
+ D LOOK("ALL")
+ Q
+ ;
+ ;
+ ;
+1 ;
+ONE ;FIND ONE VERSION NUMBER ON SECOND LINES
+ N DIR,ONE,X,DIR,Y
+ S DIR(0)="F^1:9",DIR("A")="For what version number" D ^DIR
+ Q:U[X  S ONE=X D LOOK("JUSTONE") Q
+ ;
+LOOK(E) X ^%ZOSF("RSEL") I $O(^UTILITY($J,0))="" Q
+ W !
+ N N,GFT,I
+ S N=0 F  S N=$O(^UTILITY($J,N)) Q:N=""  D ROU(N)
+ S (N,GFT,I)=$O(GFT("")) F  S I=$O(GFT(I)) Q:I=""   D
+ .I N+1=I S N=I Q
+ .D WRITE
+ .W "," S (GFT,N)=I
+WRITE W GFT W:N'=GFT "-",N
+ Q
+ ;
+ROU(NAME) S @("X=$T(+2^"_NAME_")") ;$T("_NAME_"+1^"_NAME_")")
+ S X=$P(X,"**",2)
+ D @E
+ Q
+ ;
+ALL N V
+ F  Q:X=""  S V=$P(X,","),X=$P(X,",",2,99) S:V]"" GFT(V)=""
+ Q
+ ;
+JUSTONE N V
+ F  Q:$P(X,",")=ONE!(X="")  S X=$P(X,",",2,99)
+ I X]"" S GFT(NAME)=""
+ Q
+ ;
+ ;
+ ;
+ ;
+SCAN X ^%ZOSF("RSEL") I $O(^UTILITY($J,0))="" Q
+ W !
+ N T,N S (T,N)=0
+ F  S N=$O(^UTILITY($J,N)) Q:N=""  D
+ .F L=1:1 S X=$T(+L^@N) Q:X=""  D TESTX I $D(X) W !,N,?9,"+",L,?14,X S T=T+1
+ W !!,T," OCCURRENCES FOUND"
+ Q
+ ;
+TESTX ;KILL X IF IT IS OK
+ N V,P,C,I S I=0
+NF S I=$F(X,":'$D(",I) I 'I K X Q
+ S P=0 F C=I:1:999 S:$E(X,C)="(" P=P+1 S:$E(X,C)=")" P=P-1 I P<0 S V=$E(X,I,C-1) Q
+ I $G(V)="" K X Q
+ S I=I+$L(V) G NF:$E(X,I,999)'?1")#2".E
+ Q
+ ;
+ ;
+ ;
+FIND ;
+ N X,L,UCI,Y,R,DIR,H
+ S DIR(0)="FO^2:12",DIR("A")="Enter name of ROUTINE you are looking for across UCIs" D ^DIR S R=Y W ! Q:R'?1(1"%",1A).E
+ X ^%ZOSF("UCI") S H=$P(Y,","),DIR=""
+ I $G(^DD("OS"))-19 D  ;***CACHE-SPECIFIC   FROM %NSP
+ .X "n gft f UCI=1:1:$zu(90,0) s gft=$zu(90,2,0,UCI) s:$l(gft) L(gft)=0" S DIR(0)=$G(^%ZOSF("SIZE")),DIR="ZL @R X DIR(0) ZR"
+ E  I $T(LIST^ZCD)="" W !,"SORRY.  GT.M NAMESPACES UNKNOWN" Q
+ E  D LIST^ZCD M L=Y("B")
+ S (UCI,L,X)=""
+ F  S UCI=$O(L(UCI)) Q:UCI=""  I $D(^[UCI]DD) D  ;I UCI'="%SYS",UCI'="SAMPLES",UCI'="DOCBOOK" D
+ .X $$ZN("UCI")_" I $T(^@R)]"""" S:H'=UCI L=UCI S Y=0 X DIR S UCI(Y,UCI)=0",$$ZN("H")
+ S Y="" F  S Y=$O(UCI(Y)),UCI=""  Q:Y=""  F   S UCI=$O(UCI(Y,UCI)) Q:UCI=""  W !,UCI I Y W ?16,Y," bytes"
+ I $T(^@R)="",L]"" X $$ZN("L") ;Go there if it is not here
+ Q
+ ;
+ ;
+KIDS ;
+ N DIC,MSCLIST,MSC,HERE,X,Y,DIR,MSCL,MSCR,XPD,XPDI,DITCPZN,MSCZ,HEAD
+ D DITCPZN
+ S DIR(0)="F^1:90",DIR("A")="Compare to what namespace"
+ D ^DIR
+ Q:U[X  X ^%ZOSF("UCICHECK") Q:0[Y  Q:HERE=X  S MSCL=X
+SB W !!! S DIC=9.6,DIC(0)="AEQM",DIC("A")="Select BUILD not already in '"_MSCL_"': ",DIC("S")="I '$$EXISTQ^%(+Y,MSCL)"
+ S DIC("W")="D DICW^%(45)"
+ D ^DIC Q:Y<0  S XPD=$P(Y,U,2),XPDI=+Y W !
+ K MSCLIST,DIC,DIR D NEED(.MSCLIST,XPD,MSCL) I $O(MSCLIST(""))="" W "NO MISSING DEPENDENCIES IN '"_MSCL_"'" S HEAD=XPD D MSCZ(XPDI),TO G SB
+ W !!,"'",MSCL,"' REQUIRES THE FOLLOWING PATCHES BEFORE '",XPD,"' CAN BE INSTALLED: "
+ S (MSCLIST,MSC)="" F  S MSCLIST=$O(MSCLIST(MSCLIST)),MSC=MSC+1 Q:MSCLIST=""  D
+ .W !?3,MSCLIST S MSCLIST(MSCLIST,0)=+$O(^XPD(9.6,"B",MSCLIST," "),-1) I $G(^XPD(9.6,MSCLIST(MSCLIST,0),0))]"" D DICW(30)
+ S MSCLIST(XPD)="",MSCLIST(XPD,0)=XPDI ;The original Build
+ K DIR W !! S DIR(0)="Y",DIR("A")="WOULD YOU LIKE TO COMPARE THESE "_MSC_" BUILDS WITH ANOTHER NAMESPACE"
+ D ^DIR I Y-1 G SB
+ S HEAD=XPD_" & "_MSC_" prerequisite"_$E("s",MSC>1)
+ W ! F  S MSCLIST=$O(MSCLIST(MSCLIST)) Q:MSCLIST=""  M @MSCZ=^XPD(9.6,MSCLIST(MSCLIST,0)) ;MERGE all the BUILDs!
+ D TO
+ G SB
+ ;
+ ;
+ ;
+TEMPLATE ;
+ N DIC,MSCLIST,MSC,HERE,X,Y,DIR,MSCL,MSCR,XPD,XPDI,DITCPZN,MSCZ,HEAD
+ D DITCPZN
+ S DIR(0)="F^1:90",DIR("A")="Compare to what namespace"
+ D ^DIR
+ Q:U[X  X ^%ZOSF("UCICHECK") Q:0[Y  Q:HERE=X  S MSCL=X
+ W !!! S DIC=.401,DIC(0)="AEQM",DIC("S")="I $P(^(0),U,4)=9.6,$D(^(1))" D ^DIC Q:Y<0
+ W ! F MSCLIST=0:0 S MSCLIST=$O(^DIBT(+Y,1,MSCLIST)) Q:MSCLIST=""  M @MSCZ=^XPD(9.6,MSCLIST) ;MERGE all the BUILDs!
+ S HEAD="BUILDs in ["_$P(Y,U,2)_"]"
+ G TO
+ ;
+ ;
+ ;
+MSCZ(XPD) N %,X
+ M @MSCZ=^XPD(9.6,XPD) F %=0:0 S %=$O(^XPD(9.6,XPD,10,%)) Q:'%  S X=$P($G(^(%,0)),U) I X]"" S X=$O(^XPD(9.6,"B",X,0)) D
+ .M @MSCZ=^XPD(9.6,X) ;MULTIPLE BUILDS GET MERGED TOGETHER!
+ Q
+ ;
+ ;
+DICW(MAR) N % S %=$P(^(0),U,4) W:% ?MAR,"    Distributed ",$E(%,4,5),"-",$E(%,6,7),"-",$E(%,1,3)+1700
+ Q
+ ;
+ ;
+NEED(LIST,XPD,MSCL) ;IN MSCL, WHICH BUILDS ARE NEEDED BEFORE BUILD XPD CAN BE INSTALLED?
+ N I,X,XPDI
+ I $$EXISTQ(.XPD,MSCL) Q
+ S XPDI=$O(^XPD(9.6,"B",XPD,""),-1) Q:'XPDI
+ F I=0:0 S I=$O(^XPD(9.6,XPDI,"REQB",I)) Q:'I  D
+ .S X=$P($G(^(I,0)),U) Q:X=""  Q:$D(LIST(X))
+ .Q:$$EXISTQ(X,MSCL)  S LIST(X)=""
+ .D NEED(.LIST,X,MSCL) ;RECURSIVE!
+ Q
+ ;
+ ;
+EXISTQ(XPD,MSCL) ;DOES BUILD XPD EXIST IN MSCL?
+ I +XPD=XPD S XPD=$P($G(^XPD(9.6,XPD,0)),U)
+ Q $O(^[MSCL]XPD(9.6,"B",XPD,0))>0
+ ;
+ ;
+ ;
+ ;
+ ;
+ ;
+INSTALL ;
+I ;INSTALL Compare across UCIs
+ N DIC,X,Y,DIR,DITCPZN,XPDI,MSCL,MSCR,HERE,XPD,DITCPT,DIRUT,MSCF,MSCZ,HEAD
+ D DITCPZN S DIC("S")="I '$P(^(0),U,9),$D(^XPD(9.7,""ASP"",Y,1,Y)),$D(^XTMP(""XPDI"",Y))"
+ S DIC=9.7,DIC(0)="AEQM" D ^DIC Q:Y'>0  K DIC S XPD=+Y,HEAD=$P(Y,U,2)
+ S %=$O(^XTMP("XPDI",XPD,"BLD",0)) M @MSCZ=^(%) G FROM
+ ;
+BUILD ;
+B ;BUILD Compare across UCIs
+ N DIC,X,Y,DIR,DITCPZN,XPDI,MSCL,MSCR,HERE,XPD,DITCPT,DIRUT,MSCF,MSCZ,HEAD
+ D DITCPZN S DIC=9.6,DIC(0)="AEQM" D ^DIC Q:Y'>0  K DIC S XPD=+Y,HEAD=$P(Y,U,2) D MSCZ(+Y)
+FROM S DIR(0)="F^1:90",DIR("A")="Compare components of '"_$P(Y,U,2)_"' from what UCI",DIR("B")=HERE D ^DIR Q:U[X
+ X ^%ZOSF("UCICHECK") Q:0[Y
+ S MSCL=X,DIR("B")=$G(^DOPT("DITCPUCI",DUZ))
+TO ;
+ S DIR(0)="FO^1:90",DIR("A")="Compare from "_MSCL_" to what namespace",DIR("B")=$G(^DOPT("DITCPUCI",DUZ)) D ^DIR Q:U[X
+ X ^%ZOSF("UCICHECK") Q:0[Y!(X=MSCL)  S ^DOPT("DITCPUCI",DUZ)=X,MSCR=X
+ D START(MSCL,MSCR,HEAD) Q:IO=""
+ K DITCPT S DITCPT(0)=""
+ K DIR M DIR=@MSCZ@("KRN",9.8,"NM","B") F X="PRET","PRE","INIT","INI" S X=$G(@MSCZ@(X)) I X]"" S DIR($P(X,U,X[U+1))=""
+ S XPDI="" F  S XPDI=$O(DIR(XPDI)) Q:XPDI=""  D ROUTINE(XPDI) ;COMPARE ROUTINES
+ K DIR D XFORMUCI(.MSCL),XFORMUCI(.MCSCR)
+ F XPDI=0:0 S XPDI=$O(@MSCZ@(4,XPDI)) Q:'XPDI  D  G C:$D(DIRUT) ;GO THRU FILES FOR DD's
+ .K DITCPT S DITCPT(0)=""
+ .I $P($G(^(XPDI,222)),U,3)="f" D DITCP($NA(^[MSCL]DD(XPDI)),$NA(^[MSCR]DD(XPDI)),0,1,.DITCPT) Q  ;whole-file DD compare
+ .N FILE F FILE=0:0 S FILE=$O(@MSCZ@(4,XPDI,2,FILE)) Q:'FILE  D
+ ..K DITCPT S DITCPT(0)=""
+ ..N FLD F FLD=0:0 S FLD=$O(@MSCZ@(4,XPDI,2,FILE,1,FLD)) Q:'FLD!$D(DIRUT)  D:$D(^[MSCL]DD(FILE,FLD))!$D(^[MSCR]DD(FILE,FLD))  ;field-by-field DD compare
+ ...D DITCP($NA(^[MSCL]DD(FILE,FLD)),$NA(^[MSCR]DD(FILE,FLD)),0,2,.DITCPT)
+ ;
+DATA N DI1,DI2 S DI1="^["""_MSCL_"""]",DI2="^["""_MSCR_"""]"
+ F XPDI=0:0 S XPDI=$O(@MSCZ@(4,XPDI)) Q:'XPDI  D:$P($G(^(XPDI,222)),U,7)="y"  G C:$D(DIRUT)
+ .K DITCPT S DITCPT(0)="",MSCF=$E($$CREF^DILF($G(^DIC(XPDI,0,"GL"))),2,99) Q:MSCF'["("
+ .N DIS S DIS=$G(@MSCZ@(4,XPDI,224)) I DIS["^" K DIS ;I $P(^ORD(100.23,Y,0),U)="IHS LAB ORDER LABEL"
+ .D DITCP(DI1_MSCF,DI2_MSCF,XPDI,1,.DITCPT,.DIS) Q  ;WHOLE FILE, OR SCREENED
+ F XPDI=0:0 S XPDI=$O(@MSCZ@("KRN",XPDI)) Q:'XPDI  I XPDI-9.8 D  ;GO THRU THE SPECIAL FILES FOR DATA
+ .K DITCPT S DITCPT(0)=""
+ .N MSC S MSC="" F  S MSC=$O(@MSCZ@("KRN",XPDI,"NM","B",MSC)),X="    FILE #" Q:MSC=""  D E(XPDI,$P(MSC,X),+$P(MSC,X,2))
+ K @MSCZ
+C G CLOSE^DIO4
+ ;
+ ;
+BLOCK(X) N D S D=DIL+(DIL#2=0)+1 N DIL S DIL=D,DIDD(DIL)=DIDD S:$G(DITCPT)>2 DITCPT=2 D E(.404,$P($G(^DIST(.404,+X,0)),U)) ;compare ScreenMan BLOCKs
+ Q
+E(XPDI,NAME,DIFL) N X,N,MSC,S Q:NAME=""!'XPDI
+ S MSCF=$G(^DIC(XPDI,0,"GL")) Q:MSCF'?1"^".E  S MSCF=$E($$CREF^DILF(MSCF),2,99)
+ F X=1,2 S N=$$NS(X)_MSCF D  S:'S S=-999 S MSC(X)=$NA(@N@(S))
+ .F S=0:0 S S=$O(@N@("B",NAME,S)) Q:'S  Q:'$G(DIFL)  Q:XPDI<.4!(XPDI>.402)  Q:$P($G(@N@(S,0)),U,4)=DIFL  ;TEMPLATE FILE# MUST MATCH
+ D DITCP(MSC(1),MSC(2),XPDI,$G(DIL,2),.DITCPT)
+ Q
+ ;
+DITCPZN S Y=$P($$WUCI,",") I ^DD("OS")=19,$T(CURRENT^ZCD)]"" S Y=$$CURRENT^ZCD
+ S (HERE,MSCL)=Y
+ N Z S Z="",DITCPZN(5)="F MSCRN=1,2 "_$$ZN("@($P(""MSCL^MSCR"",U,MSCRN))")_" X " D
+ .N DIR,X,Y S DIR(0)="Y",DIR("B")="NO",DIR("A")="Examine only first two lines of ROUTINEs" D ^DIR
+ .I Y=1 S Z=":2" D
+ ..S DITCPZN(9)="N %,%3,%2,%1 S Y=0 F %=1,3:1 S %1=$T(+%^@XPDI),%3=$F(%1,"" "") Q:'%3  S %3=$S($E(%1,%3)'="";"":$L(%1),$E(%1,%3+1)="";"":$L(%1),1:%3-2) F %2=1:1:%3 S Y=$A(%1,%2)*%2+Y"
+ ..S DITCPZN(0)="I $T(^@XPDI)]"""" N Y X DITCPZN(9) S DITCPL(MSCRN,3)=""CHECKSUM: ""_Y",DITCPZN(5)=DITCPZN(5)_"DITCPZN(0),"
+ S DITCPZN(5)=DITCPZN(5)_"""F X=1:1"_Z_" S Y=$T(+X^@XPDI) Q:Y=""""""""  X DITCPZN(1) S DITCPL(MSCRN,X)=Y""",DITCPZN="X DITCPZN(5) "_$$ZN("HERE")
+ S DITCPZN(1)="N Z S Z=$F(Y,$C(32)) S:$E(Y,1,Z)[$C(9) Z=$F(Y,$C(9)),Y=$E(Y,1,Z-2)_$C(32)_$E(Y,Z,9999) F  Q:$A(Y,Z)-32  S Y=$E(Y,1,Z-1)_$E(Y,Z+1,9999)"
+ D DT^DICRW
+ S MSCZ=$NA(^UTILITY("MSCZ",$J)) K @MSCZ
+ Q
+ ;
+ZN(X) I $G(^DD("OS"))-19 Q "ZN "_X
+ I $T(SWITCH^ZCD)="" Q "I 0" ;WE DON'T KNOW HOW TO HANDLE GT.M IN GENERAL
+ Q "I $$SWITCH^ZCD("_X_")"
+ ;
+ ;
+ ;
+DD ;
+UCI ;Compare across UCI's  FILEMAN OPTION 9, SUBOPTION 3
+ N DITCPI,DIC,DIR,DITCPUCI,DIRUT,DIB,DITCPT,X,Y,UCI
+ S UCI=$$WUCI Q:UCI=""  D DT^DICRW,L^DICRW1 Q:'$D(DIC)
+ S DITCPI=+Y,DIR(0)="F^1:90",DIR("A")="Compare to what UCI",DIR("B")=$G(^DOPT("DITCPUCI",DUZ)) D ^DIR
+ Q:U[X  X ^%ZOSF("UCICHECK") Q:0[Y  S ^DOPT("DITCPUCI",DUZ)=X,DITCPUCI=X
+ K DIR S DIR(0)="S^1:DATA DICTIONARY ONLY;2:FILE ENTRIES ONLY;3:DATA DICTIONARY AND FILE ENTRIES",DIR("B")=3 D ^DIR
+ Q:U[X  S DIB=Y
+ D START(UCI,DITCPUCI) Q:IO=""
+ D XFORMUCI(.DITCPUCI)
+ S DIR=DITCPI
+ADD K DITCPT
+ I DIB#2 D DITCP("^DD("_DITCPI_")","^["""_DITCPUCI_"""]DD("_DITCPI_")",0,1,.DITCPT) F X=0:0 S X=$O(^DD(DITCPI,"SB",X)) Q:'X  S DITCPI(X)=""
+ I '$D(DIRUT) S DITCPI=$O(DITCPI(0)) I DITCPI K DITCPI(DITCPI) G ADD
+FILES S X=$G(DITCPT) K DITCPT S DITCPT=X
+ I '$D(DIRUT),DIB>1,$D(^DIC(DIR)) S X=$$CREF^DILF(^DIC(DIR,0,"GL")) D DITCP(X,"^["""_DITCPUCI_"""]"_$P(X,U,2,9),DIR,1,.DITCPT)
+ I '$D(DIRUT) S DIR=$O(^DIC(DIR)) I DIR,DIR'>DIB(1) K DITCPI S DITCPI=DIR G ADD
+ G C
+ ;
+ ;
+XFORMUCI(X) ;TRANSFORM INSTANCE NAME TO DIRECTORY FOR GT.M
+ I ^DD("OS")=19,$T(NEWZGZRO^ZCD)]"" N %ZG,%ZRO D NEWZGZRO^ZCD(X) I $G(%ZG)]"" S X=%ZG
+ Q
+ ;
+ ;
+WUCI() ;
+ N Y I $D(^%ZOSF("UCI"))#2 X ^("UCI")
+ I $D(Y) W !?2,"UCI: "_Y Q Y
+ Q ""
+ ;
+START(L,R,TITLE) ;
+ N POP W !,"DISPLAY COMPARISON ON" K %ZIS D ^%ZIS S:$G(POP) IO="" Q:IO=""  U IO S $Y=0
+ D DT^DICRW S Y=$$NOW^XLFDT D DD^%DT W !,Y,?25,$G(TITLE,$G(^DD("SITE")))
+ W !,"UCI: "_L S Y=L
+ I $D(R) S %=$L(R) W ?$S(IOM\2>%:IOM\2,1:IOM-%),"UCI: "_R
+ W !,$TR($J("",IOM)," ","-")
+ Q
+ ;
+ ;
+ROUTINE(XPDI) ;
+ N DITCPL,D
+ X DITCPZN
+ I '$D(DITCPL(1)) S D=$D(DITCPL(2)) K DITCPL(2) S DITCPL(1,1)="Missing",DITCPL(2,1)=$S(D:" ",1:"Also missing")
+ E  I '$D(DITCPL(2)) K DITCPL(1) S DITCPL(1,1)=" ",DITCPL(2,1)="Missing"
+ N DITCPT S DITCPT(-1)="" D CPL("DITCPL(1)","DITCPL(2)",XPDI_" ROUTINE")
+ Q
+ ;
+ ;
+DITCP(DI1,DI2,DIDD,DIFLAG,DITCPT,DIS) I '$D(@DI1),'$D(@DI2) Q
+ N I,DIR,DID,W,DIL,DIN1,DIN2,DIV1,DIV2,DIGL,DIDDN,DIO,DIV,DIT,DIOX,DITM,DIN,D1,D2
+ K DIRUT
+ S DIL=+DIFLAG
+ I '$D(DITCPT(1)),$G(DITCPT)'>DIL D
+ .I DIDD S DITCPT(1)="ENTRIES IN FILE #"_DIDD_" ("_$P($G(^DIC(DIDD,0)),U)_")"
+ .E  S X="" D  S DITCPT(1)="DATA DICTIONARY #"_I_" ("_X_")"
+ ..S I=$QS(DI1,$QL(DI1)-(DIL#2=0))
+ ..F  S X=X_$O(^DD(I,0,"NM",0)) Q:'$D(^DD(I,0,"UP"))  S X=X_" SUBFIELD" Q
+ ;
+ S DIV=$D(^DD(DIDD,.001)),(DIOX,U)="^",IOM=$G(IOM,80) F  S X=$O(^UTILITY("DITCP",$J,DIL)) Q:$D(DIRUT)!'X  K ^(X)
+ I '$D(@DI1) D  Q
+ .S D1="{Missing}" I '$D(@DI2) S D2="{Also Missing}" D WB Q
+ .I DIL#2 S D2="" D WB Q
+ .S DIN2=$QS(DI2,$QL(DI2)),DIGL=0,DIN=1 D RIGHT(DI2)
+ I '$D(@DI2) D  Q
+ .I DIL#2 S D1="",D2="{Missing}" D WB Q
+ .S DIGL=0,DIN=1,^UTILITY("DITCP",$J,"X1",DIDD,$QS(DI1,$QL(DI1)))=$P(@DI1@(0),U) G END
+ I 'DIDD,DIL=1 D
+ .N P,DITCPL F X=1,2 S Y=@("DI"_X),P=1,%="" D  S P(X)=P-1
+ ..F  S %=$O(@Y@(0,"ID",%)) Q:%=""  S A=$S(+%=%:%,1:+$P(%,"WDI",2)) S:$D(@Y@(A,0))=1 DITCPL(X,P)=$S(A:$P($G(@Y@(A,0)),U),1:%_" (Display only)"),P=P+1
+ .I DIFLAG'["L"!$D(DITCPL(1)) D DITCPL("IDENTIFIERS")
+ .F P="DIC","ACT" K DITCPL M DITCPL(1,1)=@DI1@(0,P),DITCPL(2,1)=@DI2@(0,P) D DITCPL($S(P="DIC":"SPECIAL LOOKUP",1:"POST-SELECTION ACTION"))
+S I DIL#2 S DIN1=$O(@DI1@(0)) K ^UTILITY("DITCP",$J,DIL) G ENTRY  ;WE ARE AT ROOT OF A (SUB)-FILE  FIND 1ST ENTRY ON LEFT SIDE
+ S (DIN1,DIN2)=-1
+ I DIL'<DIFLAG D  ;Build a header for this Entry
+ .N D,O S D=$G(DIDD(DIL),DIDD),O=$G(@DI2@(0)) I D-.1 S O=$P(O,U,1,D=.11+1) ;For INDEX, take FILE + NAME field
+ .I 'D S O="FIELD: "_O
+ENTRYNAM .E  S O=$O(^DD(D,0,"NM",0))_": "_$$EXT(O,.01,2) I D=.4!(D=.401)!(D=.402) S D=$P($G(@DI1@(0)),U,4) S:D O=O_" (File "_D_")"
+ .I DIV S O=O_" (#"_$QS(DI2,$QL(DI2))_")"
+ .S DITCPT(DIL)=O
+ G INPUT:DIDD=.402,SORT:DIDD=.401,PRINT:DIDD=.4
+GET2D S DIN1=$O(@DI1@(DIN1)),DIN2=$O(@DI2@(DIN2))
+ ;NOW CHECK IF WE'RE AT THE SAME NODE ON BOTH SIDES
+NEXTD G END:$D(DIRUT) I DIN1=DIN2 G UP:DIN1="",D2:$D(@DI2@(DIN2))>9 S DIV2=@DI2@(DIN2),DIV1=@DI1@(DIN1) G GET2D:DIV2=DIV1,GET2D:'$$DIS(DI1) S DIN="",DIGL=DIN1 D  G GET2D
+ .F  S DIN=$O(^DD(DIDD,"GL",DIGL,DIN)) Q:DIN=""  D
+ ..I 'DIN S %X=+$E(DIN,2,9),%Y=$P(DIN,",",2),D2=$E(DIV2,%X,%Y),D1=$E(DIV1,%X,%Y)
+ ..E  S D1=$P(DIV1,U,DIN),D2=$P(DIV2,U,DIN) I DIN=2 S:DIDD=0 D1=$TR(D1,"a"),D2=$TR(D2,"a") I DIDD=.4031 D BLOCK(D1) Q  ;SPECIFIER OR HEADER BLOCK
+ ..I D1'=D2 D:D1]""!(DIFLAG'["L") DIO12($$TITLE) Q
+ .I DIGL=0,'DIDD S D1=$P(DIV1,U,5,99),D2=$P(DIV2,U,5,99) Q:D1=D2  D DIO12($S($P(DIV1,U,2)["C":"COMPUTED EXPRESSION",1:"INPUT TRANSFORM")) Q
+ D X G END:$D(DIRUT),NEXTD
+ ;
+D2 G ENTRY:DIL#2 S Y=$O(^DD(DIDD,"GL",DIN1,0,0)) ;DOWN TO A MULTIPLE FIELD
+ I Y,$D(^DD(DIDD,+Y,0)) S Y=$P(^(0),U,2) I Y]"",Y-.15,$D(^DD(+Y,.01,0)) G WP:$P(^(0),U,2)["W" D DN S DIDD=+Y G S
+ G GET2D
+ ;
+WP S X=$P(^(0),U),%Y=0
+ F %X=0:0 S %X=$O(@DI1@(DIN1,%X)) Q:$D(^(+%X,0))[0  S I=^(0),%Y=$O(@DI2@(DIN2,%Y)) G WPD:$G(^(+%Y,0))'=I ;IS EVERY LINE IDENTICAL?
+ G GET2D:'$O(@DI2@(DIN2,%Y))
+WPD D SUBHD W !?IOM-$L(X)\2,X,"..."
+ G GET2D
+ ;
+DIS(N) Q:$G(DIS)="" 1 Q:DIL>2 1
+ N Y S N=$NA(@N),Y=$QS(N,$QL(N)) Q:'$D(@N@(0)) 1 X DIS Q $T ;SCREEN THE ENTRY
+ ;
+ENTRY S DIGL=0,DIN=1 G NEXTENT:'$D(@DI1@(+DIN1,0)) S X=$P(^(0),U) I DIDD=.11,$G(DITCPIF),DITCPIF-X G NEXTENT ;Skip INDEXes not for this DD
+ I DIDD=.4032 D  D BLOCK(X) G NEXTENT
+ .N V S V=$$EXT(X,.01,1) I V]"" S V=$O(@($$NS(2)_"DIST(.404,""B"",V,0)")) I V S X=V
+ .S ^UTILITY("DITCP",$J,DIL,X)=""
+ S DIV=$D(^DD(DIDD,.001))
+ I DIDD=.1 S DIN2=+DIN1,X=@DI1@(DIN1,0) G NEW:'$D(@DI2@(DIN2,0)),NEW:^(0)'=X,OLD ;CROSS-REFERENCE matches on entire 0 node
+BIX I $P($G(@DI2@(DIN1,0)),U)=X S DIN2=DIN1 G OLD:$$MATCH,NEW:DIV
+ I $P(^DD(DIDD,.01,0),U,2)["P" S MSCP=$$EXT(X,.01,1) F DIN2=0:0 S DIN2=$O(@DI2@(DIN2)) G NEW:DIN2'>0  I $$EXT($P($G(^(DIN2,0)),U),2)=MSCP G OLD:$$MATCH
+ S DIN2=0 I '$D(^DD(DIDD,0,"IX","B",DIDD,.01)) F  S DIN2=$O(@DI2@(DIN2)) G NEW:DIN2'>0 I $P($G(^(DIN2,0)),U)=X G OLD:$$MATCH
+BI S DIN2=$O(@DI2@("B",X,DIN2)) I 'DIN2 S:$L(X)>30 DIN2=$O(@DI2@("B",$E(X,1,30),DIN2)) G NEW:'DIN2
+ I $D(@DI2@(DIN2,0)),$P(^(0),X)="" G OLD:$$MATCH ;COMPARE BY NAME
+ G BI
+ ;
+NEW S ^UTILITY("DITCP",$J,"X1",DIDD,DIN1)=X ;WILL SHOW EXTRA ENTRY ON LEFT SIDE
+NEXTENT S DIN1=$O(@DI1@(DIN1))
+N2 I DIN1 G ENTRY
+ I DIFLAG'["L" F DIN2=0:0 S DIN2=$O(@DI2@(DIN2)) Q:'DIN2  Q:+DIN2'=DIN2  D  Q:$D(DIRUT)  ;Print extras on right
+ .I '$D(^UTILITY("DITCP",$J,DIL,DIN2)) D RIGHT($NA(@DI2@(DIN2)))
+ G END:$D(DIRUT),UP
+ ; 
+RIGHT(X) Q:'$D(@X@(0))#2  Q:'$$DIS(X)  I DIDD=.11,$G(DITCPIF),DITCPIF-^(0) Q
+ D XTRAM($P(^(0),U,1,$S(DIDD=.1:99,1:1)),2) Q  ;If X-REF, compare entire node
+ ;
+XTRAM(DID,X) Q:DIDD=.15  ;FORGET TRIGGERED-BY
+ F I=DIL+(DIL#2):1 K DITCPT(I) I $O(DITCPT(I))="" Q
+ I DIDD=.11 S DID="@DI"_X_"@(DIN"_X_",0)",DID=$P($G(@DID),U,2,3)
+ S DIDDN=$S(DIDD:$O(^DD(DIDD,0,"NM","")),1:"FIELD")_$S(DIV:" #"_@("DIN"_X),$D(^DIC(DIDD)):"",1:" Multiple")_": ",Y=^DD(DIDD,.01,0) D DIT,DIO
+ Q
+ ;
+ ;
+ ;
+ ;
+MATCH() I DIV,DIN1'=DIN2 Q 0 ;DO ENTRIES MATCH?  NOT IF NUMBERS DON'T AND IT'S NUMBER-MEANINGFUL
+ I $D(^UTILITY("DITCP",$J,DIL,DIN2)) Q 0 ;We already matched this one
+ I DIDD=.11 Q '$$MISMATCH(.02) ;INDEX must match on NAME
+ I DIDD=.403 Q '$$MISMATCH(7) ;FORM must match on PRIMARY FILE
+ I DIDD=.4!(DIDD=.401)!(DIDD=.402) Q '$$MISMATCH(4) ;TEMPLATES must match on FILE
+ I DIDD=19 Q 1 ;OPTION matches on NAME alone
+ S DITM=.01
+ID S DITM=$O(^DD(DIDD,0,"ID",DITM)) I DITM="" Q 1
+ S I=DITM S:I?1"W"1.NP I=$E(I,2,99) I $$MISMATCH(I) Q 0 ;MATCH EACH NON-NULL IDENTIFIER
+ G ID
+ ;
+MISMATCH(I) K B I '$D(^DD(DIDD,I,0)) Q 0
+ D  Q:W="" 0 S B=W Q:'$D(^DD(DIDD,I,0)) 0 D  Q:W="" 0 Q W'=B ;If two non-null values aren't equal it's a mismatch
+ .S A=$P(^(0),U,4),%=$P(A,";",2),W=$P(A,";"),A=$S($D(B):DI2,1:DI1) I W?." " S W="" Q
+ .I $D(@A@($S($D(B):DIN2,1:DIN1),W))[0 S W="" Q
+ .I % S W=$P(^(W),U,%)
+ .E  S W=$E(^(W),+$E(%,2,9),$P(%,",",2))
+ .S:W?.E1L.E W=$$UP^DILIBF(W)
+ ;
+OLD S ^UTILITY("DITCP",$J,DIL,DIN2)="" ;Remember that we found DIN2 as a match
+ D DN G S
+ ;
+ ;
+DN S DIDD(DIL)=DIDD
+ N X,%X F X=1,2 S %X=@("DIN"_X),(W,W(X,DIL))=@("DI"_X),W=$NA(@W@(%X)),@("DI"_X)=W  ;ADD A SUBSCRIPT
+ S DIL=DIL+1 Q
+ ;
+UP ;
+ G END:'$D(W(2,DIL-1))
+ S DIN1=$O(@DI1) I DIL#2=0 S:$G(DITCPT)>DIL DITCPT=DIL D U G N2
+ D LEFT Q:$D(DIRUT)  S DIN2=$O(@DI2),DIDD=DIDD(DIL-1)
+ D U G NEXTD
+U S (DIL,Y)=DIL-1,DI1=W(1,Y),DI2=W(2,Y)
+ Q
+ ;
+2 ;
+X G XTRA1:DIN2="",XTRA2:DIN1="" I +DIN1=DIN1 G XTRA1:+DIN2'=DIN2!(DIN2>DIN1),XTRA2
+ G XTRA2:+DIN2=DIN2!(DIN1]DIN2)
+XTRA1 S X=1,DIGL=DIN1
+ D XTRA S DIN1=$O(@DI1@(DIN1)) Q
+XTRA2 S X=2,DIGL=DIN2 D:DIFLAG'["L" XTRA S DIN2=$O(@DI2@(DIN2)) Q
+ ;
+XTRA S DIR="@DI"_X_"@(DIGL)" I $D(@DIR)<9 S DIN="",DIV=@DIR G GL
+ S I=$O(^(DIGL,0)) Q:'I  S I=$O(^(I)),DIN=$O(^DD(DIDD,"GL",DIGL,0,0)) Q:$D(^DD(DIDD,+DIN,0))[0
+ S DIDDN=$P(^(0),U)_$S($P(^DD(+$P(^(0),U,2),.01,0),U,2)["W":"...",1:" Multiple"_$E("s",I>0)),(DID,DIT)="" D DIO S DIOX=0 Q
+ ;
+GL S DIN=$O(^DD(DIDD,"GL",DIGL,DIN)) Q:DIN=""  S Y=$O(^(DIN,0)) G GL:'$D(^DD(DIDD,+Y,0)) S DIO=$P(^(0),U)_": "
+ I DIN S DID=$P(DIV,U,DIN) G:DID="" GL:$P(DIV,U,DIN,999)]"",Q
+ E  S DID=$E(DIV,+$E(DIN,2,9),$P(DIN,",",2)) Q:DID?." "
+ S DIDDN=$$TITLE G GL:DIDDN="" S DIDDN=DIDDN_": "
+ D DIO G GL:'$D(DIRUT)
+END D LEFT Q:$D(DIRUT)
+ I 'DIDD,DIFLAG#2 N DITCPIF,DIDD D  G ENTRY ;INDEXES for File #DITCPIF
+ .S DITCPIF=$QS(DI1,1),DIDD=.11,DI1=$NA(@DI1,0)_"(""IX"")",DI2=$NA(@DI2,0)_"(""IX"")",(DIN1,DIN2)=0
+ Q
+ ;
+LEFT N DIN1,LV F DIN1=0:0 S DIN1=$O(^UTILITY("DITCP",$J,"X1",DIDD,DIN1)) Q:'DIN1  S LV=^(DIN1) I $$DIS($NA(@DI1@(DIN1))) D XTRAM(LV,1) K ^UTILITY("DITCP",$J,"X1",DIDD,DIN1) Q:$D(DIRUT)
+ Q
+ ;
+TITLE() S Y=$$FLDNUM I '$D(^DD(DIDD,+Y,0)) Q "" ;decide whether this FIELD is interesting
+ I $O(^(5,0)) Q "" ;Forget TRIGGERED FIELDS! (INTERESTING!)
+ I DIDD=.403,Y'>5 Q ""
+ I DIDD=19,DIGL\1=99!(Y=3.6) Q ""
+ I 'DIDD,Y=50!(DIGL="DT")!(DIGL=8)!(DIGL=8.5)!(DIGL=9)!(Y=1.1) Q ""
+ I 'DIDD,Y=.3,$G(DIV1)[":" Q "SET OF CODES" ;INSTEAD OF "POINTER"
+ S Y=^DD(DIDD,+Y,0) D DIT Q $P(Y,U)
+ ;
+FLDNUM() I DIN]"" Q $O(^DD(DIDD,"GL",DIGL,DIN,0))
+ Q .01
+ ;
+DIT ;
+ S DIT=$P(Y,U,2),I=$P(Y,U,3) Q
+ ;
+EXT(X,C,MSCSIDE) I X]"" N Y I C S C=$P($G(^DD(DIDD,C,0)),U,2),Y=X D:$G(MSCSIDE)  D S^DIQ I Y]"" Q Y ;101.41 BOMBED IN $$EXTERNAL^DIDU(DIDD,$$FLDNUM,,X)
+ .F  Q:C'["P"  Q:'$D(@($$NS(MSCSIDE)_$P(^(0),U,3)_"0)"))  S C=$P(^(0),U,2) Q:'$D(^(+Y,0))  S Y=$P(^(0),U),C=$P($G(^DD(+C,.01,0)),U,2)
+ Q X
+ ;
+NS(MSCSIDE) N N S N=@("DI"_MSCSIDE) I $E(N,2)="[" Q $E(N,1,$F(N,"]")-1) ;returns "^" OR "^[NS]"
+ Q U
+ ;
+ ;
+ ;
+DIO ;X=1 MEANS LEFT SIDE, X=2 MEANS RIGHT SIDE
+  ;DID=WHAT WE HAVE TO PRINT
+ S DIOX=$Y D SUBHD Q:$D(DIRUT)  S DIO=DIDDN_$$EXT(DID,$$FLDNUM,X)
+O  ;DIO IS OUTPUT
+ I X=1 S DIOX(1)=DIDDN D LF
+ Q:$D(DIRUT)
+ I X=2 D:$S(DIOX-1:1,'$D(DIOX(1)):1,1:$P(DIO,DIOX(1))]"") LF Q:$D(DIRUT)  W ?IOM\2 K DIOX(1)
+ W $J("",DIL),$E(DIO,1,IOM\2-DIL-1) S DIO=$E(DIO,IOM\2-DIL,999) I $L(DIO)<$S(X=1:17,X=2:2) W DIO S DIOX=X Q  ;WRITE A LITTLE MORE THAN HALF A LINE
+ S DIOX=0 G O
+ ;
+ ;
+DIO12(T) ;WRITE D1 AND D2 SIDE BY SIDE
+ N D,V
+ Q:D1=D2!(T="") 
+ F D=1,2 D
+ .S V="D"_D Q:@V=""
+ .S @V=T_": "_$$EXT(@V,$$FLDNUM,D)
+ Q:D1=D2  ;EXTERNAL VERSIONS MAY BE SAME
+WB D SUBHD
+ F  Q:D1=""&(D2="")  D LF Q:$D(DIRUT)  F D=1,2 S X="D"_D W:D=2 ?IOM\2 W $J("",DIL),$E(@X,1,IOM\2-DIL-1) S @X=$E(@X,IOM\2-DIL,999)
+ Q
+ ;
+ ;
+SUBHD ;
+ N Y,L S Y=$O(DITCPT("")) Q:Y=""
+ I $G(DITCPT) S L=DITCPT
+ E  S L=Y F Y=$G(DIL):-1:Y D LF G Q:$D(DIRUT)
+ F  Q:L>$G(DIL)!$D(DIRUT)  D LF Q:$D(DIRUT)  W:$D(DITCPT(L)) ?IOM-$L(DITCPT(L))\2,DITCPT(L) S L=L+1
+ K DITCPT S DITCPT=L-1 Q  ;REMEMBER HOW DEEP WE WERE AT LAST OUTPUT
+ ;
+ ;
+LF U IO W ! Q:$Y+3<IOSL!$D(DIRUT)
+ D:$E($G(IOST),1,2)="C-"
+ .N DIR,X,Y
+ .S DIR(0)="E" W ! D ^DIR S $Y=0
+ I '$D(DIRUT) W @IOF
+ Q
+ ;
+INPUT I $T(GET^DIETED)'["," Q
+ N DITCPL F DITCPL=1,2 D GET^DIETED($NA(DITCPL(DITCPL)),@("DI"_DITCPL))
+ D DITCPL("EDIT FIELDS") G UP
+ ;
+SORT  I $T(GET^DIBTED)="" Q
+ N DITCPL,DHD,DIBTA,DIBT0,MSCS F DITCPL=1,2 D
+ .S DIBTA=$NA(DITCPL(DITCPL))
+ .S DIBT0=-(DITCPL/10+$J) K ^DIBT(DIBT0) M ^DIBT(DIBT0)=@("@DI"_DITCPL),MSCS(DITCPL)=^DIBT(DIBT0,"O") ;GRAB SORT TEMPLATES INTO NEGATIVELY-NUMBERED ^DIBT NODE!
+ .D GET^DIBTED(DIBTA) K ^DIBT(DIBT0)
+ D DITCPL("SORT FIELDS")
+ K DITCPL M DITCPL=MSCS D DITCPL("SEARCH SPECIFICATIONS")
+ G UP
+ ;
+PRINT I $T(GET^DIPTED)'["," Q
+ N DITCPL,DISH,DHD F DITCPL=1,2 D GET^DIPTED($NA(DITCPL(DITCPL)),@("DI"_DITCPL))
+ D DITCPL("PRINT FIELDS") G UP
+ ;
+DITCPL(H) D CPL("DITCPL(1)","DITCPL(2)",H)
+ Q
+ ;
+ ;
+ ;
+CPL(LEFT,RIGHT,HEADER) ;COMPARE TWO LISTS, LEFT/RIGHT
+ N WINDOW S WINDOW=30 ;HOW FAR TO LOOK AHEAD
+ N SHORT S SHORT=7 ;SHORTEST LINE LENGTH TO COMPARE
+ N DI S DI(1)=LEFT,DI(2)=RIGHT
+ N H S H=2
+ N L1,L2,E1,E2,C,S,V1,V2,X,Z,Y,I,G,J,K,L,IFN,IFE,IFP
+ S E1=$O(@DI(1)@(""),-1),E2=$O(@DI(2)@(""),-1) ;FIND BOTTOM OF ARRAYS TO BE COMPARED
+ S S="",C=IOM-2/2\1,(L1,L2)=0
+D S L1=L1+1,L2=L2+1 I L1>E1!(L2>E2) D  Q  ;Grab two new lines.  If we can't WE'RE AT END
+ .F I=L2:1:E2 S X=$$GET(2,I),Z=1,G=I D W2(1)
+ .F I=L1:1:E1 S X=$$GET(1,I),Z=1,G=I D W1
+ G:$$GET(1,L1)=$$GET(2,L2) D  ;If lines are equal, go get two more
+ S V1=$$GET(1,L1),(IFE,IFP,IFN)=""
+ F I=L2:1:L2+WINDOW Q:I>E2  S V2=$$GET(2,I) D PARTIAL G D:IFE Q:IFN  ;MOVE DOWN RIGHT SIDE TO FIND MATCH FOR 'V1'
+ I $$GET(1,L1+1)=$$GET(2,L2+1),$$GET(1,L1+2)=$$GET(2,L2+2)!($L($$GET(1,L1))>SHORT) D SBS(L1,L2) G D
+ S Z=1,G=L1,X=V1 D W1 S L2=L2-1 G D
+ ;
+GET(RL,LINE) ;RETURNS RIGHT OR LEFT LINE
+ I $D(@DI(RL)@(LINE))=1 Q $$STRIP(@DI(RL)@(LINE))
+ I $D(@DI(RL)@(LINE,0)) Q $$STRIP(@DI(RL)@(LINE,0)_$G(@DI(RL)@(LINE,"OVF",1)))
+ Q ""
+STRIP(X) ;F  Q:X'?.E1" "  S X=$E(X,1,$L(X)-1) ;Take off trailing spaces
+ Q X
+ ;
+PARTIAL N J,K
+ S J=$E($P(V1," ",2)),K=$E($P(V2," ",2)) I J=";"&(K'=";")!(J'=";"&(K=";")) Q
+ F K=1:5:26 Q:$L($E(V2,K,K+10))<SHORT  I $F(V1,$E(V2,K,K+10)) S IFP=1 G E1
+ Q
+E1 ;Go down to line I on rt side
+ D HEAD
+ F J=L2:1:I S X=$$GET(2,J) I X'?.P,$L(X)'<SHORT F Y=L1+1:1:$S(L1+WINDOW<E1:L1+WINDOW,1:E1) I $$GET(1,Y)=X S IFN=1 G Q  ;Look down on the left side!
+ F L2=L2:1 Q:L2=I  S X=$$GET(2,L2),Z=1,G=L2 D W2(1) ;Write out extras on RIGHT
+ S:V1=V2 IFE=1 D:'IFE SBS(L1,L2)
+Q Q
+ ;
+ ;
+SBS(L1,L2) ;SIDE BY SIDE PRINT
+ N S1,S2
+ S S1=$$GET(1,L1),S2=$$GET(2,L2),Z=1,L=0
+ F K=1:1 S X=$E(S1,1,C-5) S:K=1 G=L1 D W1 S Y=X,X=$E(S2,1,C-5) S:K=1 G=L2,Z=1 D W2(0) S S1=$E(S1,C-4,255),S2=$E(S2,C-4,255) D:X'=Y&$D(S)&(L=0)  I $L(S1)+$L(S2)=0 S IFE=1 Q
+ .F L=1:1:$L(X) I $E(X,L)'=$E(Y,L) W !?L+3,"^",?L+C+4,"^" Q
+ Q
+ ;
+ ;
+W1 ;WRITE LEFT SIDE, line G
+ D HEAD F  W ! Q:'$L(X)  W $S(Z:$J(G,3),1:"   "),"{",$E(X,1,C-5),$C(125) S Z=0 Q:$L(X)<(C-4)  S X=$E(X,C-4,999)
+ Q
+ ;
+W2(DITCPLLF) ;WRITE RIGHT SIDE, line G
+ D HEAD F  W:DITCPLLF ! Q:'$L(X)  W ?C+1 W $S(Z:$J(G,3),1:"   "),"{",$E(X,1,C-5),$C(125) S Z=0 Q:$L(X)<(C-4)  S X=$E(X,C-4,999)
+ Q
+ ;
+HEAD ;If we haven't written subheader, do so
+ S:H=2 H=0 Q:H'=0  D SUBHD W !,?IOM-$L(HEADER)\2,HEADER S H=1
+ Q
+
+
+
