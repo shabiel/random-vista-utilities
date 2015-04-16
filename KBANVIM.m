@@ -1,7 +1,8 @@
 KBANVIM(RN,RO) ; VEN/SMH - Use VIM Editor on Cache ; 4/29/14 4:51pm
  G EN+1
- ;
+R(RN) D KBANVIM(RN,1) QUIT  ; Read Only
 EN(RN,RO) ; Public Entry point
+ I $G(RN)="" B
  LOCK +@RN:0 E  WRITE "Somebody else is editing this right now" QUIT
  S RO=$G(RO,0)
  ;
@@ -32,6 +33,8 @@ EN(RN,RO) ; Public Entry point
  . USE IO
  . F  R X:1  Q:$$STATUS^%ZISH()  S I=I+1,NEWRTN(I,0)=X
  . D CLOSE^%ZISH(RN)
+ . ;
+ . I $G(NEWRTN(1,0))="" QUIT
  . ;
  . ;
  . ;
