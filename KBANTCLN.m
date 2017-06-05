@@ -1,4 +1,4 @@
-KBANTCLN ; VEN/SMH - Clean Taskman Environment ;2013-11-15  1:36 PM
+KBANTCLN ; VEN/SMH - Clean Taskman Environment ;2017-06-05  5:30 PM
  ;;nopackage;0.1
  ; License: Public Domain
  ; Author not responsible for use of this routine.
@@ -8,10 +8,81 @@ KBANTCLN ; VEN/SMH - Clean Taskman Environment ;2013-11-15  1:36 PM
  ;
  I $$PROD^XUPROD() W "PRODUCTION SYSTEM. WILL NOT RUN.",! QUIT
  ;
-START ;
- D ^ZTMGRSET
- D ^DINIT
+ N VOL,UCI,SITENUMBER,SITENAME,FQDN
+ R "VOL: ",VOL,!
+ R "UCI: ",UCI,!
+ R "SITE NUMBER: ",SITENUMBER,!
+ R "SITE NAME: ",SITENAME,!
+ R "SITE DOMAIN: ",FQDN,!
+ D START(VOL,UCI,SITENUMBER,SITENAME,FQDN)
+ QUIT
  ;
+START(VOL,UCI,SITENUMBER,SITENAME,FQDN)
+ I $G(VOL)="" S VOL="ROU"
+ I $G(UCI)="" S UCI="VISTA"
+ I $G(SITENUMBER)="" S SITENUMBER=100
+ I $G(SITENAME)="" S SITENAME="DEMO SYSTEM"
+ I $G(FQDN)="" S FQDN="LOCALHOST"
+ N DIQUIET S DIQUIET=1 D DT^DICRW
+ D ZTMGRSET(VOL,UCI)
+ D DINIT(SITENUMBER,SITENAME)
+ D TASKMAN
+ D DEVCLEAN
+ QUIT
+ ;
+ZTMGRSET(VOL,UCI) ; Silent ZTMGRSET Replacement
+ ; NB: OS 3 is Cache
+ ;     OS 8 is GT.M/Unix
+ ;
+ K ^%ZOSF
+ N ZTOS
+ N ZTMODE S ZTMODE=1
+ N SCR S SCR=" I 1"
+ N %S,%D
+ I +$SY=0  ; D 3^ZTMGRSET
+ . S ZTOS=3
+ . N I,X F I=1:2 S Z=$P($T(Z+I^ZOSFONT),";;",2) Q:Z=""  S X=$P($T(Z+1+I^ZOSFONT),";;",2,99) S ^%ZOSF(Z)=X
+ . S ^%ZOSF("GSEL")="K ^CacheTempJ($J),^UTILITY($J) D ^%SYS.GSET M ^UTILITY($J)=CacheTempJ($J)"
+ . S ^%ZOSF("OS")="OpenM-NT^18"
+ . S %S="ZOSVONT^ZTBKCONT^ZIS4ONT^ZISFONT^ZISHONT^XUCIONT"
+ . D DES^ZTMGRSET,MOVE^ZTMGRSET
+ . S %S="ZISTCPS^ZTMDCL",%D="%ZISTCPS^%ZTMDCL"
+ . D MOVE^ZTMGRSET
+ . D RUM^ZTMGRSET
+ ;
+ ;
+ ;
+ I +$SY=47 D ; 8^ZTMGRSET
+ . S ZTOS=8
+ . N I,X F I=1:2 S Z=$P($T(Z+I^ZOSFGUX),";;",2) Q:Z=""  S X=$P($T(Z+1+I^ZOSFGUX),";;",2,99) S ^%ZOSF(Z)=X
+ . S ^%ZOSF("OS")="GT.M (Unix)^19"
+ . S ^%ZOSF("TMP")="/tmp/"
+ . ;
+ . S %ZE=".m" D init^%RSEL
+ . S %S="ZOSVGUX^^ZIS4GTM^ZISFGTM^ZISHGUX^XUCIGTM"
+ . D DES^ZTMGRSET,MOVE^ZTMGRSET
+ . S %S="ZOSV2GTM^ZISTCPS",%D="%ZOSV2^%ZISTCPS"
+ . D MOVE^ZTMGRSET
+ . ;
+ S %S="DIDT^DIDTC^DIRCR",%D="%DT^%DTC^%RCR"
+ D MOVE^ZTMGRSET
+ D ALL^ZTMGRSET
+ D GLOBALS^ZTMGRSET
+ S (^%ZOSF("MGR"),^%ZOSF("PROD"))=UCI_","_VOL
+ S ^%ZOSF("VOL")=VOL
+ D MES^ZTMGRSET("ALL DONE",1)
+ Q
+ ;
+DINIT(SITENUMBER,SITENAME) ; Silent Dinit Replacement
+ S ^DD("SITE")=SITENAME
+ S ^DD("SITE",1)=SITENUMBER
+ D
+ . I +$SY=47 S ^DD("OS")=$$FIND1^DIC(.7,,"QX","GT.M(UNIX)")
+ . I +$SY=0  S ^DD("OS")=$$FIND1^DIC(.7,,"QX","CACHE/OpenM")
+ D NOASK^DINIT
+ QUIT
+ ;
+TASKMAN ; Taskman Stuff -->
 CONST ; Constant Integers
  N KMAXJOB S KMAXJOB=30  ; Maximum M processes on the system
  ;
@@ -21,7 +92,7 @@ ENV ; We get environment variables here.
  N Y D GETENV^%ZOSV ; Y=UCI^VOL^NODE^BOX LOOKUP
  N UCI S UCI=$P(Y,U)
  N VOL S VOL=$P(Y,U,2)
- N NODE S NODE=$P(Y,U,3) ; Cache Namespace on Cache; hostname on GT.M.
+ N NODE S NODE=$P(Y,U,3) ; Cache Namespace on Cache; $gtm_sysid on GT.M.
  N BOX S BOX=$P(Y,U,4) ; VOL:NODE
  ;
 KSP ; Kernel System Parameters cleanup. Fall through.
@@ -64,20 +135,7 @@ F14P5 ; 14.5 clean-up. Fall through.
  I $D(KBANERR) S $EC=",U1," ; if error filing, crash
  ;
 F14P6 ; 14.6 clean-up. Fall through
- ; Unfortunately, there is a nasty DIC("S") on the input transform that doesn't
- ; work with the updater, but works with ^DIC. We avoid that by entering internal
- ; values only.
  D KF(14.6) ; Bye bye file 14.6
- ;
- N KBANFDA
- S KBANFDA(14.6,"+1,",.01)=UCI  ; From UCI
- S KBANFDA(14.6,"+1,",1)=1 ; From Volume Set (pointer) (created above)
- S KBANFDA(14.6,"+1,",2)="" ; To Volume Set (pointer) 
- S KBANFDA(14.6,"+1,",3)="" ; To UCI
- ;
- N KBANERR ; For errors
- D UPDATE^DIE("",$NA(KBANFDA),"",$NA(KBANERR)) ; File data (Internal Format)
- I $D(KBANERR) S $EC=",U1," ; if error filing, crash
  ;
 F14P7 ; 14.7 clean-up. Fall through
  D KF(14.7) ; Bye bye file 14.7
@@ -144,7 +202,16 @@ F19P2 ; 19.2 clean-up; Fall through.
  I $D(KBANERR) S $EC=",U1," ; if error filing, crash
  ;
 DEV ; Device File Clean-up
- ; Delete Volume field for each device.
+MSP ; Mailman Site Parameters Clean-up
+ N KBANFDA S KBANFDA(4.3,"1,",7.5)="@" ; CPU/VOL in MSP
+ N KBANERR
+ D FILE^DIE("",$NA(KBANFDA),$NA(KBANERR))
+ I $D(KBANERR) S $EC=",U1,"
+ ;
+TEND QUIT  ; Taskman END
+ ;
+DEVCLEAN ; Device Cleanup
+DEVVOL ; Delete Volume field for each device.
  N KBANI S KBANI=0
  N KBANFDA
  F  S KBANI=$O(^%ZIS(1,KBANI)) Q:'KBANI  S KBANFDA(3.5,KBANI_",",1.9)="@"
@@ -152,22 +219,47 @@ DEV ; Device File Clean-up
  D FILE^DIE("",$NA(KBANFDA),$NA(KBANERR))
  I $D(KBANERR) S $EC=",U1,"
  ;
-MSP ; Mailman Site Parameters Clean-up
- N KBANFDA S KBANFDA(4.3,"1,",7.5)="@" ; CPU/VOL in MSP
- N KBANERR
- D FILE^DIE("",$NA(KBANFDA),$NA(KBANERR))
- I $D(KBANERR) S $EC=",U1,"
+DEVNULL ; Fix up null devices
+ D FIND^DIC(3.5,,,"PQM","NULL")
  ;
-END QUIT  ; THE END
+ ; Remove old nulls
+ N Z,FDA
+ N KBANI F KBANI=0:0 S KBANI=$O(^TMP("DILST",$J,KBANI)) Q:'KBANI  S Z=^(KBANI,0) D
+ . N IEN S IEN=$P(Z,U)
+ . S FDA(3.5,IEN_",",.01)="ZZNULL"
+ D FILE^DIE(,$NA(FDA))
+ ;
+ ; Find correct null (if present)
+ N NULL
+ I $P(^%ZOSF("OS"),U,2)=19 S NULL="/dev/null" ; GT.M
+ I $P(^%ZOSF("OS"),U,2)=18,$$VERSION^%ZOSV(1)'["NT" S NULL="/dev/null"   ; Cache non-NT
+ I $P(^%ZOSF("OS"),U,2)=18,$$VERSION^%ZOSV(1)["NT"  S NULL="//./NUL" ; Cache NT
+ D FIND^DIC(3.5,,,"PQM",NULL)
+ ;
+ I +^TMP("DILIST",$J,0)>1 D
+ . N KBANI F KBANI=1:0 S KBANI=$O(^TMP("DILST",$J,KBANI)) Q:'KBANI  S Z=^(KBANI,0) D
+ .. N IEN S IEN=$P(Z,U)
+ .. S FDA(3.5,IEN_",",.01)="ZZNULL"
+ . D FILE^DIE(,$NA(FDA))
+ ;
+ S FDA(3.5,"?+1,",.01)="NULL"         ; NAME
+ S FDA(3.5,"?+1,",.02)="BIT BUCKET"   ; LOCATION
+ S FDA(3.5,"?+1,",1)=NULL             ; $I
+ S FDA(3.5,"?+1,",1.95)="@"           ; SIGN-ON/SYSTEM DEVICE
+ S FDA(3.5,"?+1,",2)="TERMINAL"       ; TYPE
+ S FDA(3.5,"?+1,",3)="P-OTHER"        ; SUBTYPE
+ S FDA(3.5,"?+1,",51)="@"             ; OPEN COUNT
+ D UPDATE^DIE("E",$NA(FDA),,$NA(ERR))
+ I $D(DIERR) ZWRITE ERR
+ QUIT
  ;
  ;
  ;
 F19P2OPT ; Map: Option Name; Startup or time to schedule; resched freq; OS-specific
  ;;XMRONT^S^^OpenM
- ;;XWB LISTENER STARTER^S^^OpenM
+ ;;XWB LISTENER STARTER^S
  ;;XUSER-CLEAR-ALL^S
  ;;XUDEV RES-CLEAR^S
- ;;XU PROC CNT CLUP^N+5'^1H^GT.M
  ;;XMAUTOPURGE^T+1@0010^1D
  ;;XMCLEAN^T+1@0015^1D
  ;;XQBUILDTREEQUE^T+1@0020^1D
