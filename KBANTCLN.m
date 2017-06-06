@@ -1,12 +1,11 @@
-KBANTCLN ; VEN/SMH - Clean Taskman Environment ;2017-06-05  5:30 PM
+KBANTCLN ; VEN/SMH - Clean Taskman Environment ;2017-06-06  11:47 AM
  ;;nopackage;0.1
  ; License: Public Domain
  ; Author not responsible for use of this routine.
  ; Author coyly recommends not using this on production accounts.
  ;
  ; This routine cleans up Taskman globals for a new environment.
- ;
- I $$PROD^XUPROD() W "PRODUCTION SYSTEM. WILL NOT RUN.",! QUIT
+ W "WARNING: DO NOT RUN THIS ON A PRODUCTION ENVIRONMENT.",!
  ;
  N VOL,UCI,SITENUMBER,SITENAME,FQDN
  R "VOL: ",VOL,!
@@ -19,13 +18,14 @@ KBANTCLN ; VEN/SMH - Clean Taskman Environment ;2017-06-05  5:30 PM
  ;
 START(VOL,UCI,SITENUMBER,SITENAME,FQDN)
  I $G(VOL)="" S VOL="ROU"
- I $G(UCI)="" S UCI="VISTA"
- I $G(SITENUMBER)="" S SITENUMBER=100
+ I $G(UCI)="" S UCI="VAH"
+ I $G(SITENUMBER)="" S SITENUMBER=999
  I $G(SITENAME)="" S SITENAME="DEMO SYSTEM"
  I $G(FQDN)="" S FQDN="LOCALHOST"
- N DIQUIET S DIQUIET=1 D DT^DICRW
+ S IO=$P,U="^"
  D ZTMGRSET(VOL,UCI)
  D DINIT(SITENUMBER,SITENAME)
+ D ZUSET
  D TASKMAN
  D DEVCLEAN
  QUIT
@@ -82,7 +82,11 @@ DINIT(SITENUMBER,SITENAME) ; Silent Dinit Replacement
  D NOASK^DINIT
  QUIT
  ;
-TASKMAN ; Taskman Stuff -->
+ZUSET ;
+ D POST^ZUSET
+ QUIT
+ ;
+TASKMAN ; Taskman Stuff --> Ends at TEND
 CONST ; Constant Integers
  N KMAXJOB S KMAXJOB=30  ; Maximum M processes on the system
  ;
@@ -224,7 +228,7 @@ DEVNULL ; Fix up null devices
  ;
  ; Remove old nulls
  N Z,FDA
- N KBANI F KBANI=0:0 S KBANI=$O(^TMP("DILST",$J,KBANI)) Q:'KBANI  S Z=^(KBANI,0) D
+ N KBANI F KBANI=0:0 S KBANI=$O(^TMP("DILIST",$J,KBANI)) Q:'KBANI  S Z=^(KBANI,0) D
  . N IEN S IEN=$P(Z,U)
  . S FDA(3.5,IEN_",",.01)="ZZNULL"
  D FILE^DIE(,$NA(FDA))
@@ -237,7 +241,7 @@ DEVNULL ; Fix up null devices
  D FIND^DIC(3.5,,,"PQM",NULL)
  ;
  I +^TMP("DILIST",$J,0)>1 D
- . N KBANI F KBANI=1:0 S KBANI=$O(^TMP("DILST",$J,KBANI)) Q:'KBANI  S Z=^(KBANI,0) D
+ . N KBANI F KBANI=1:0 S KBANI=$O(^TMP("DILIST",$J,KBANI)) Q:'KBANI  S Z=^(KBANI,0) D
  .. N IEN S IEN=$P(Z,U)
  .. S FDA(3.5,IEN_",",.01)="ZZNULL"
  . D FILE^DIE(,$NA(FDA))
@@ -249,24 +253,103 @@ DEVNULL ; Fix up null devices
  S FDA(3.5,"?+1,",2)="TERMINAL"       ; TYPE
  S FDA(3.5,"?+1,",3)="P-OTHER"        ; SUBTYPE
  S FDA(3.5,"?+1,",51)="@"             ; OPEN COUNT
+ N ERR
  D UPDATE^DIE("E",$NA(FDA),,$NA(ERR))
  I $D(DIERR) ZWRITE ERR
+ ;
+DEVHFS ; Fix up HFS device
+ N OS S OS=$$VERSION^%ZOSV(1)
+ N HFSSUBTYPE S HFSSUBTYPE=$$FIND1^DIC(3.2,,"PQX","P-HFS/80/99999")
+ I 'HFSSUBTYPE S HFSSUBTYPE=$$FIND1^DIC(3.2,,"PQX","P-OTHER")
+ N OPENPAR S OPENPAR=$S($P(^%ZOSF("OS"),U,2)=19:"(nowrap:stream:newversion)",$P(^%ZOSF("OS"),U,2)=18:"""NWS""") ; Yes, crash if not 18 or 19.
+ ;
+ N FDA
+ S FDA(3.5,"?+1,",.01)="HFS"          ; NAME
+ S FDA(3.5,"?+1,",.02)="Host File Device"   ; LOCATION
+ S FDA(3.5,"?+1,",1)=$S(OS["Linux":"/dev/shm/hfs.dat",OS["NT":"c:\hfs.dat",1:"/tmp/hfs.dat")   ; $I
+ S FDA(3.5,"?+1,",1.95)="@"           ; SIGN-ON/SYSTEM DEVICE
+ S FDA(3.5,"?+1,",2)="TERMINAL"       ; TYPE
+ S FDA(3.5,"?+1,",3)="`"_HFSSUBTYPE   ; SUBTYPE
+ S FDA(3.5,"?+1,",51)="@"             ; OPEN COUNT
+ S FDA(3.5,"?+1,",4)="@"              ; ASK DEVICE
+ S FDA(3.5,"?+1,",5)="@"              ; ASK PARAMETERS
+ S FDA(3.5,"?+1,",5.1)="YES"          ; ASK HOST FILE
+ S FDA(3.5,"?+1,",5.2)="@"            ; ASK HFS I/O OPERATION
+ S FDA(3.5,"?+1,",19)=OPENPAR         ; OPEN PARAMETERS
+ ;
+ N ERR
+ D UPDATE^DIE("E",$NA(FDA),,$NA(ERR))
+ I $D(DIERR) ZWRITE ERR
+ ;
+DEVTTY ; Fix TTY
+ N OS S OS=$$VERSION^%ZOSV(1)
+ N dI S dI=$S(OS["Linux":"/dev/tty",OS["NT":"|TRM|",1:"/dev/tty")
+ N ttyIEN s ttyIEN=$$FIND1^DIC(3.5,,"MQ",dI)
+ I 'ttyIEN W "**NEED TO FIX**"
+ N FDA,ERR,DIERR
+ S FDA(3.5,ttyIEN_",",.01)="CONSOLE"
+ D FILE^DIE("E",$NA(FDA))
+ I $D(DIERR) ZWRITE ERR B
+ ;
+ N FDA,IENS
+ S IENS=ttyIEN_","
+ S FDA(3.5,IENS,.01)="CONSOLE"
+ S FDA(3.5,IENS,.02)="Computer Console"   ; LOCATION
+ S FDA(3.5,IENS,1)=dI               ; $I
+ S FDA(3.5,IENS,2)="VIRTUAL TERMINAL"       ; TYPE
+ S FDA(3.5,IENS,3)="`"_$$FIND1^DIC(3.2,,"XQ","C-VT220") ; SUBTYPE
+ N ERR,IEN
+ D FILE^DIE("E",$NA(FDA),$NA(ERR))
+ I $D(DIERR) ZWRITE ERR B
+ ;
+ N FDA,ERR
+ S FDA(3.5,IENS,1.95)=1           ; SIGN-ON/SYSTEM DEVICE
+ D FILE^DIE(,$NA(FDA),$NA(ERR))
+ I $D(DIERR) ZWRITE ERR B
+ ;
+DEVPTS ; Fix PTS
+ N OS S OS=$$VERSION^%ZOSV(1)
+ N dI S dI=$S(OS["Linux":"/dev/pts",OS["NT":"|TNT|",OS["CYGWIN":"/dev/cons",OS["Darwin":"/dev/ttys",1:"/dev/pts")
+ N ptyIEN s ptyIEN=$$FIND1^DIC(3.5,,"MQ",dI)
+ I 'ptyIEN W "**NEED TO FIX**"
+ N FDA,ERR,DIERR
+ S FDA(3.5,ptyIEN_",",.01)="VIRTUAL TERMINAL"
+ D FILE^DIE("E",$NA(FDA))
+ I $D(DIERR) ZWRITE ERR B
+ ;
+ S IENS=ptyIEN_","
+ N FDA
+ S FDA(3.5,IENS,.01)="VIRTUAL TERMINAL"
+ S FDA(3.5,IENS,.02)="Virtual Terminal"   ; LOCATION
+ S FDA(3.5,IENS,1)=dI               ; $I
+ S FDA(3.5,IENS,2)="VIRTUAL TERMINAL"       ; TYPE
+ S FDA(3.5,IENS,3)="`"_$$FIND1^DIC(3.2,,"XQ","C-VT220") ; SUBTYPE
+ N ERR,IEN
+ D FILE^DIE("E",$NA(FDA),$NA(ERR))
+ I $D(DIERR) ZWRITE ERR B
+ ;
+ N FDA,ERR
+ S FDA(3.5,IENS,1.95)=1           ; SIGN-ON/SYSTEM DEVICE
+ D FILE^DIE(,$NA(FDA),$NA(ERR))
+ I $D(DIERR) ZWRITE ERR B
  QUIT
  ;
  ;
- ;
 F19P2OPT ; Map: Option Name; Startup or time to schedule; resched freq; OS-specific
- ;;XMRONT^S^^OpenM
  ;;XWB LISTENER STARTER^S
  ;;XUSER-CLEAR-ALL^S
  ;;XUDEV RES-CLEAR^S
+ ;;XOBV LISTENER STARTUP^S
+ ;;XMMGR-START-BACKGROUND-FILER^S
  ;;XMAUTOPURGE^T+1@0010^1D
  ;;XMCLEAN^T+1@0015^1D
  ;;XQBUILDTREEQUE^T+1@0020^1D
  ;;XQ XUTL $J NODES^T+1@0025^1D
  ;;XUERTRP AUTO CLEAN^T+1@0030^1D
  ;;XUTM QCLEAN^T+1@0035^1D
+ ;;XMMGR-PURGE-AI-XREF^T+1@0040^1D
  ;;<<END>>
+ ;;
 KF(FN,IENS) ; Kill File; Private Procedure
  ; FN = File Number; pass by value. Required.
  ; IENS = IENs; pass by value. Optional.
