@@ -1,4 +1,4 @@
-KBANTCLN ; VEN/SMH - Clean Taskman Environment ;2017-06-06  11:47 AM
+KBANTCLN ; VEN/SMH - Clean Taskman Environment ;2017-06-06  2:45 PM
  ;;nopackage;0.1
  ; License: Public Domain
  ; Author not responsible for use of this routine.
@@ -268,7 +268,7 @@ DEVHFS ; Fix up HFS device
  S FDA(3.5,"?+1,",.02)="Host File Device"   ; LOCATION
  S FDA(3.5,"?+1,",1)=$S(OS["Linux":"/dev/shm/hfs.dat",OS["NT":"c:\hfs.dat",1:"/tmp/hfs.dat")   ; $I
  S FDA(3.5,"?+1,",1.95)="@"           ; SIGN-ON/SYSTEM DEVICE
- S FDA(3.5,"?+1,",2)="TERMINAL"       ; TYPE
+ S FDA(3.5,"?+1,",2)="HOST FILE SERVER"       ; TYPE
  S FDA(3.5,"?+1,",3)="`"_HFSSUBTYPE   ; SUBTYPE
  S FDA(3.5,"?+1,",51)="@"             ; OPEN COUNT
  S FDA(3.5,"?+1,",4)="@"              ; ASK DEVICE
