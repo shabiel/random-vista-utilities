@@ -1,4 +1,4 @@
-KBANTCLN ; VEN/SMH - Clean Taskman Environment ;2017-06-08  11:46 AM
+KBANTCLN ; VEN/SMH - Clean Taskman Environment ;2017-06-08  12:10 PM
  ;;nopackage;0.1
  ; License: Public Domain
  ; Author not responsible for use of this routine.
@@ -285,7 +285,7 @@ DEVTTY ; Fix TTY
  N OS S OS=$$VERSION^%ZOSV(1)
  N dI S dI=$S(OS["Linux":"/dev/tty",OS["NT":"|TRM|",1:"/dev/tty")
  N ttyIEN s ttyIEN=$$FIND1^DIC(3.5,,"MQ",dI)
- I 'ttyIEN W "**NEED TO FIX**"
+ I 'ttyIEN QUIT  ; this needs to be better later
  N FDA,ERR,DIERR
  S FDA(3.5,ttyIEN_",",.01)="CONSOLE"
  D FILE^DIE("E",$NA(FDA))
@@ -311,7 +311,7 @@ DEVPTS ; Fix PTS
  N OS S OS=$$VERSION^%ZOSV(1)
  N dI S dI=$S(OS["Linux":"/dev/pts",OS["NT":"|TNT|",OS["CYGWIN":"/dev/cons",OS["Darwin":"/dev/ttys",1:"/dev/pts")
  N ptyIEN s ptyIEN=$$FIND1^DIC(3.5,,"MQ",dI)
- I 'ptyIEN W "**NEED TO FIX**"
+ I 'ptyIEN QUIT  ; this needs to be better later
  N FDA,ERR,DIERR
  S FDA(3.5,ptyIEN_",",.01)="VIRTUAL TERMINAL"
  D FILE^DIE("E",$NA(FDA))
