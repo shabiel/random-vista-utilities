@@ -1,4 +1,4 @@
-KBANTCLN ; VEN/SMH - Clean Taskman Environment ;2017-06-06  2:45 PM
+KBANTCLN ; VEN/SMH - Clean Taskman Environment ;2017-06-08  11:46 AM
  ;;nopackage;0.1
  ; License: Public Domain
  ; Author not responsible for use of this routine.
@@ -79,7 +79,7 @@ DINIT(SITENUMBER,SITENAME) ; Silent Dinit Replacement
  D
  . I +$SY=47 S ^DD("OS")=$$FIND1^DIC(.7,,"QX","GT.M(UNIX)")
  . I +$SY=0  S ^DD("OS")=$$FIND1^DIC(.7,,"QX","CACHE/OpenM")
- D NOASK^DINIT
+ D:$T(NOASK^DINIT)]"" NOASK^DINIT
  QUIT
  ;
 ZUSET ;
