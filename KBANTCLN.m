@@ -1,4 +1,4 @@
-KBANTCLN ; VEN/SMH - Clean Taskman Environment ;2017-06-08  12:10 PM
+KBANTCLN ; VEN/SMH - Clean Taskman Environment ;2017-06-09  9:24 AM
  ;;nopackage;0.1
  ; License: Public Domain
  ; Author not responsible for use of this routine.
@@ -80,6 +80,9 @@ DINIT(SITENUMBER,SITENAME) ; Silent Dinit Replacement
  . I +$SY=47 S ^DD("OS")=$$FIND1^DIC(.7,,"QX","GT.M(UNIX)")
  . I +$SY=0  S ^DD("OS")=$$FIND1^DIC(.7,,"QX","CACHE/OpenM")
  D:$T(NOASK^DINIT)]"" NOASK^DINIT
+ ;
+ ; Fix ZSAVE bug causing END tag in TIUXRC2 to appear twice - % not newed (https://groups.google.com/forum/#!topic/hardhats/FEeTqYJZVSQ)
+ I $P($T(+2^DI),";",3)="22.0" S $P(^DD("OS",19,"ZS"),"%I")="N %,"
  QUIT
  ;
 ZUSET ;
