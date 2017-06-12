@@ -1,4 +1,4 @@
-KBANTCLN ; VEN/SMH - Clean Taskman Environment ;2017-06-09  9:24 AM
+KBANTCLN ; VEN/SMH - Clean Taskman Environment ;2017-06-11  9:26 PM
  ;;nopackage;0.1
  ; License: Public Domain
  ; Author not responsible for use of this routine.
@@ -120,6 +120,10 @@ KSP ; Kernel System Parameters cleanup. Fall through.
  N KBANERR ; For errors
  D UPDATE^DIE("E",$NA(KBANFDA),"",$NA(KBANERR)) ; File data
  I $D(KBANERR) S $EC=",U1," ; if error filing, crash
+ ;
+ ; DEFAULT AUTO SIGN-ON -> Turn off. Causes problems with internet machines.
+ K KBANFDA,KBANERR
+ S KBANFDA(8989.3,1_",",218)="d" D FILE^DIE(,$NA(KBANFDA),$NA(KBANERR))
  ;
 F14P5 ; 14.5 clean-up. Fall through.
  D KF(14.5) ; Bye bye file 14.5
