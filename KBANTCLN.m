@@ -1,4 +1,4 @@
-KBANTCLN ; VEN/SMH - Clean Taskman Environment ;2017-06-11  9:26 PM
+KBANTCLN ; VEN/SMH - Clean Taskman Environment ;2017-11-16  11:27 AM
  ;;nopackage;0.1
  ; License: Public Domain
  ; Author not responsible for use of this routine.
@@ -39,7 +39,7 @@ ZTMGRSET(VOL,UCI) ; Silent ZTMGRSET Replacement
  N ZTMODE S ZTMODE=1
  N SCR S SCR=" I 1"
  N %S,%D
- I +$SY=0  ; D 3^ZTMGRSET
+ I +$SY=0 D  ; D 3^ZTMGRSET
  . S ZTOS=3
  . N I,X F I=1:2 S Z=$P($T(Z+I^ZOSFONT),";;",2) Q:Z=""  S X=$P($T(Z+1+I^ZOSFONT),";;",2,99) S ^%ZOSF(Z)=X
  . S ^%ZOSF("GSEL")="K ^CacheTempJ($J),^UTILITY($J) D ^%SYS.GSET M ^UTILITY($J)=CacheTempJ($J)"
