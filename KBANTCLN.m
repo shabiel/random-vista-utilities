@@ -1,5 +1,5 @@
-KBANTCLN ; VEN/SMH - Clean Taskman Environment ;2017-11-16  11:27 AM
- ;;nopackage;0.1
+KBANTCLN ; VEN/SMH - Clean Taskman Environment ;2017-12-04  2:39 PM
+ ;;nopackage;0.2
  ; License: Public Domain
  ; Author not responsible for use of this routine.
  ; Author coyly recommends not using this on production accounts.
@@ -52,7 +52,7 @@ ZTMGRSET(VOL,UCI) ; Silent ZTMGRSET Replacement
  ;
  ;
  ;
- I +$SY=47 D ; 8^ZTMGRSET
+ I +$SY=47 D  ; 8^ZTMGRSET
  . S ZTOS=8
  . N I,X F I=1:2 S Z=$P($T(Z+I^ZOSFGUX),";;",2) Q:Z=""  S X=$P($T(Z+1+I^ZOSFGUX),";;",2,99) S ^%ZOSF(Z)=X
  . S ^%ZOSF("OS")="GT.M (Unix)^19"
@@ -123,7 +123,18 @@ KSP ; Kernel System Parameters cleanup. Fall through.
  ;
  ; DEFAULT AUTO SIGN-ON -> Turn off. Causes problems with internet machines.
  K KBANFDA,KBANERR
- S KBANFDA(8989.3,1_",",218)="d" D FILE^DIE(,$NA(KBANFDA),$NA(KBANERR))
+ S KBANFDA(8989.3,1_",",218)="d"
+ ;
+ ; DNS
+ S KBANFDA(8989.3,1_",",51)="9.9.9.9"
+ ;
+ ; Primary HFS Directory
+ ; NB: Never tested Cache/NT with c:\windows\temp. I don't have it anywhere to check.
+ N OS S OS=$$VERSION^%ZOSV(1)
+ S KBANFDA(8989.3,1_",",320)=$S(OS["Linux":"/dev/shm/",OS["NT":"c:\windows\temp\",1:"/tmp/")   ; $I
+ ;
+ D FILE^DIE(,$NA(KBANFDA),$NA(KBANERR))
+ I $D(KBANERR) S $EC=",U1," ; if error filing, crash
  ;
 F14P5 ; 14.5 clean-up. Fall through.
  D KF(14.5) ; Bye bye file 14.5
@@ -292,21 +303,23 @@ DEVTTY ; Fix TTY
  N OS S OS=$$VERSION^%ZOSV(1)
  N dI S dI=$S(OS["Linux":"/dev/tty",OS["NT":"|TRM|",1:"/dev/tty")
  N ttyIEN s ttyIEN=$$FIND1^DIC(3.5,,"MQ",dI)
- I 'ttyIEN QUIT  ; this needs to be better later
- N FDA,ERR,DIERR
- S FDA(3.5,ttyIEN_",",.01)="CONSOLE"
- D FILE^DIE("E",$NA(FDA))
- I $D(DIERR) ZWRITE ERR B
+ I ttyIEN D
+ . N FDA,ERR,DIERR
+ . S FDA(3.5,ttyIEN_",",.01)="CONSOLE"
+ . D FILE^DIE("E",$NA(FDA))
+ . I $D(DIERR) ZWRITE ERR B
  ;
  N FDA,IENS
- S IENS=ttyIEN_","
+ i ttyIEN S IENS=ttyIEN_","
+ e  s IENS="+1,"
  S FDA(3.5,IENS,.01)="CONSOLE"
  S FDA(3.5,IENS,.02)="Computer Console"   ; LOCATION
  S FDA(3.5,IENS,1)=dI               ; $I
  S FDA(3.5,IENS,2)="VIRTUAL TERMINAL"       ; TYPE
  S FDA(3.5,IENS,3)="`"_$$FIND1^DIC(3.2,,"XQ","C-VT220") ; SUBTYPE
  N ERR,IEN
- D FILE^DIE("E",$NA(FDA),$NA(ERR))
+ i ttyIEN D FILE^DIE("E",$NA(FDA),$NA(ERR)) i 1
+ e  D UPDATE^DIE("E",$NA(FDA),,$NA(ERR))
  I $D(DIERR) ZWRITE ERR B
  ;
  N FDA,ERR
@@ -318,13 +331,14 @@ DEVPTS ; Fix PTS
  N OS S OS=$$VERSION^%ZOSV(1)
  N dI S dI=$S(OS["Linux":"/dev/pts",OS["NT":"|TNT|",OS["CYGWIN":"/dev/cons",OS["Darwin":"/dev/ttys",1:"/dev/pts")
  N ptyIEN s ptyIEN=$$FIND1^DIC(3.5,,"MQ",dI)
- I 'ptyIEN QUIT  ; this needs to be better later
- N FDA,ERR,DIERR
- S FDA(3.5,ptyIEN_",",.01)="VIRTUAL TERMINAL"
- D FILE^DIE("E",$NA(FDA))
- I $D(DIERR) ZWRITE ERR B
+ I 'ptyIEN d
+ . N FDA,ERR,DIERR
+ . S FDA(3.5,ptyIEN_",",.01)="VIRTUAL TERMINAL"
+ . D FILE^DIE("E",$NA(FDA))
+ . I $D(DIERR) ZWRITE ERR B
  ;
- S IENS=ptyIEN_","
+ i ptyIEN S IENS=ptyIEN_","
+ e  s IENS="+1,"
  N FDA
  S FDA(3.5,IENS,.01)="VIRTUAL TERMINAL"
  S FDA(3.5,IENS,.02)="Virtual Terminal"   ; LOCATION
@@ -332,7 +346,8 @@ DEVPTS ; Fix PTS
  S FDA(3.5,IENS,2)="VIRTUAL TERMINAL"       ; TYPE
  S FDA(3.5,IENS,3)="`"_$$FIND1^DIC(3.2,,"XQ","C-VT220") ; SUBTYPE
  N ERR,IEN
- D FILE^DIE("E",$NA(FDA),$NA(ERR))
+ i ptyIEN D FILE^DIE("E",$NA(FDA),$NA(ERR)) i 1
+ e  D UPDATE^DIE("E",$NA(FDA),,$NA(ERR))
  I $D(DIERR) ZWRITE ERR B
  ;
  N FDA,ERR
