@@ -303,11 +303,6 @@ DEVTTY ; Fix TTY
  N OS S OS=$$VERSION^%ZOSV(1)
  N dI S dI=$S(OS["Linux":"/dev/tty",OS["NT":"|TRM|",1:"/dev/tty")
  N ttyIEN s ttyIEN=$$FIND1^DIC(3.5,,"MQ",dI)
- I ttyIEN D
- . N FDA,ERR,DIERR
- . S FDA(3.5,ttyIEN_",",.01)="CONSOLE"
- . D FILE^DIE("E",$NA(FDA))
- . I $D(DIERR) ZWRITE ERR B
  ;
  N FDA,IENS
  i ttyIEN S IENS=ttyIEN_","
@@ -333,11 +328,6 @@ DEVPTS ; Fix PTS
  N OS S OS=$$VERSION^%ZOSV(1)
  N dI S dI=$S(OS["Linux":"/dev/pts",OS["NT":"|TNT|",OS["CYGWIN":"/dev/cons",OS["Darwin":"/dev/ttys",1:"/dev/pts")
  N ptyIEN s ptyIEN=$$FIND1^DIC(3.5,,"MQ",dI)
- I 'ptyIEN d
- . N FDA,ERR,DIERR
- . S FDA(3.5,ptyIEN_",",.01)="VIRTUAL TERMINAL"
- . D FILE^DIE("E",$NA(FDA))
- . I $D(DIERR) ZWRITE ERR B
  ;
  i ptyIEN S IENS=ptyIEN_","
  e  s IENS="+1,"
