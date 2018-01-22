@@ -1,10 +1,9 @@
-KBANDIEPBT ; OSE/SMH - Input, Print, and Sort Template Analysis;2018-01-19  5:09 PM
+KBANDIEPBT ; OSE/SMH - Input, Print, and Sort Template Analysis;2018-01-22  12:47 PM
  ;;0.1;OSEHRA;
  ;
  ; This routine finds non-self files that are pointed to by a template
  ; 
 DIBT ; [Public] Sort template analysis
- ; place to output
  n outputData
  d DIBTCOL(.outputData)
  d DIBTOUT(.outputData,"/tmp/","DIBTOUT.csv")
@@ -14,14 +13,11 @@ DIET ; [Public] Input template analysis
  n outputData
  d DIETCOL(.outputData)
  d DIETOUT(.outputData,"/tmp/","DIETOUT.csv")
- ; 1) ^DIE(2327,0) = SAM TEST^3180119.1701^@^200^1^@^3180119
- ; 2) ^DIE(2327,"DIAB",3,0,200,0) = TITLE:
- ; 3) ^DIE(2327,"DR",1,200) = .01;9;^3.1^DIC(3.1,^^S I(0,0)=D0 S Y(1)=$S($D(^VA(200,D0,0)):^(0),1:"") S X=$P(Y(1),U,9),X=X  S D(0)=+X S X=$S(D(0)>0:D(0),1:"");
- ; 4) ^DIE(2327,"DR",2,3.1) = .01;
  quit
  ;
+ ; 
+DIBTCOL(outputData) ; [Private] Sort Template Data Collection
  ; for each template
-DIBTCOL(outputData) ; [Private]
  n dibt f dibt=0:0 s dibt=$o(^DIBT(dibt)) q:'dibt  d
  . quit:'$data(^DIBT(dibt,0))                 ; get valid ones only
  . new name s name=$p(^DIBT(dibt,0),U)
@@ -50,6 +46,7 @@ DIBTCOL(outputData) ; [Private]
  .. ; We are interested
  .. ; Do we have the field?
  .. i lineField="" do
+ ... ;
  ... ; no we don't so get the fields using DICOMP
  ... n X
  ... d EXPR^DICOMP(lineFile,"dmFITSL",lineFieldSpec)
@@ -61,17 +58,19 @@ DIBTCOL(outputData) ; [Private]
  .... n thisFile  s thisFile=$p(pair,U,1)
  .... n thisField s thisField=$p(pair,U,2)
  .... s outputData(file,thisFile,thisField)=dibt_U_name
+ .. ;
+ .. ; we have a field. Take it at face value
  .. e  s outputData(file,lineFile,lineField)=dibt_U_name
  quit
  ;
-DIBTOUT(outputData,outputPath,outputFile) ; [Private] Export the data
+DIBTOUT(outputData,outputPath,outputFile) ; [Private] Sort Template Data Output
  n POP
  d OPEN^%ZISH("file1",outputPath,outputFile,"W")
  i POP quit
  u IO
  n file,dstFile,dstField,dibtIEN,dibtName
  n c s c=","
- w "SORT TEMPALTE IEN,SORT TEMPLATE NAME,SOURCE FILE,DESTINATION FILE,DESTINATION FIELD",!
+ w "SORT TEMPLATE IEN,SORT TEMPLATE NAME,SOURCE FILE,DESTINATION FILE,DESTINATION FIELD",!
  f file=0:0 s file=$o(outputData(file)) q:'file  d
  . f dstFile=0:0 s dstFile=$o(outputData(file,dstFile)) q:'dstFile  d
  .. f dstField=0:0 s dstField=$o(outputData(file,dstFile,dstField)) q:'dstField  d
@@ -79,6 +78,62 @@ DIBTOUT(outputData,outputPath,outputFile) ; [Private] Export the data
  ... s dibtIEN=$p(data,U,1)
  ... s dibtName=$p(data,U,2)
  ... w dibtIEN_c_dibtName_c_file_c_dstFile_c_dstField,!
+ d CLOSE^%ZISH("file1")
+ quit
+ ;
+DIETCOL(outputData) ; [Private] Input Template Data Collection
+ ; for each template
+ ; s outputData(file,thisFile,thisField)=dibt_U_name
+ n diet f diet=0:0 s diet=$o(^DIE(diet)) q:'diet  do
+ . quit:'$data(^DIE(diet,0))                 ; get valid ones only
+ . new name s name=$p(^DIE(diet,0),U)
+ . new file s file=$p(^DIE(diet,0),U,4)
+ . ;
+ . ; for each file in the input template
+ . n line f line=0:0 s line=$o(^DIE(diet,"DR",line)) q:line>98  q:line=""  do  ; 99 is reserved for some compiled code
+ .. n lineFile f lineFile=0:0 s lineFile=$o(^DIE(diet,"DR",line,lineFile)) q:'lineFile  q:(lineFile'=+lineFile)  do
+ ... if lineFile=file quit  ; DR file same as our file; not interested
+ ... if $$PARENT(lineFile)=file quit  ; ditto, for parent
+ ... n fields s fields=^DIE(diet,"DR",line,lineFile)
+ ... n fieldIndex,field f fieldIndex=1:1:$l(fields,";") do
+ .... s field=$piece(fields,";",fieldIndex)
+ .... ;
+ .... ; various tests for the field
+ .... i field="" quit       ; empty field. Can happen!
+ .... ;
+ .... n X s X=field d ^DIM  ; is it M code?
+ .... i $d(X) quit          ; line is M code
+ .... ;
+ .... ; range like .01:5
+ .... i $l(field,":")=2,(+$p(field,":"))=$p(field,":") do  quit
+ ..... n start s start=$p(field,":",1)
+ ..... n end     s end=$p(field,":",2)
+ ..... i $data(^DD(lineFile,start)) s outputData(file,lineFile,start)=diet_U_name
+ ..... n eachField s eachField=start
+ ..... f  s eachField=$o(^DD(lineFile,eachField)) q:eachField>end  q:eachField=""  do
+ ...... s outputData(file,lineFile,eachField)=diet_U_name
+ .... ;
+ .... i $e(field)="@" quit  ; jump to another place in the template. Not a field
+ .... s field=+field
+ .... i '$data(^DD(lineFile,field)) quit  ; field doesn't exist
+ .... s outputData(file,lineFile,field)=diet_U_name
+ quit
+ ;
+DIETOUT(outputData,outputPath,outputFile) ; [Private] Input Template Data Output
+ n POP
+ d OPEN^%ZISH("file1",outputPath,outputFile,"W")
+ i POP quit
+ u IO
+ n file,dstFile,dstField,dietIEN,dietName
+ n c s c=","
+ w "INPUT TEMPLATE IEN,INPUT TEMPLATE NAME,SOURCE FILE,DESTINATION FILE,DESTINATION FIELD",!
+ f file=0:0 s file=$o(outputData(file)) q:'file  d
+ . f dstFile=0:0 s dstFile=$o(outputData(file,dstFile)) q:'dstFile  d
+ .. f dstField=0:0 s dstField=$o(outputData(file,dstFile,dstField)) q:'dstField  d
+ ... n data s data=outputData(file,dstFile,dstField)
+ ... s dietIEN=$p(data,U,1)
+ ... s dietName=$p(data,U,2)
+ ... w dietIEN_c_dietName_c_file_c_dstFile_c_dstField,!
  d CLOSE^%ZISH("file1")
  quit
  ;
