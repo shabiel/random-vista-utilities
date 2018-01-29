@@ -1,4 +1,4 @@
-KBANDIEPBT ; OSE/SMH - Input, Print, and Sort Template Analysis;2018-01-29  10:10 AM
+KBANDIEPBT ; OSE/SMH - Input, Print, and Sort Template Analysis;2018-01-29  4:24 PM
  ;;0.1;OSEHRA;
  ;
  ; This routine finds non-self files that are pointed to by a template
@@ -143,13 +143,14 @@ DIETOUT(outputData,outputPath,outputFile) ; [Private] Input Template Data Output
  d CLOSE^%ZISH("file1")
  quit
  ;
-DIPTCOL(outputData) ; [Private] Print Template Data Collection
+DIPTCOL(outputData,mCodeData) ; [Private] Print Template Data Collection
  ; for each template
  n dipt f dipt=0:0 s dipt=$o(^DIPT(dipt)) q:'dipt  d
  . quit:'$data(^DIPT(dipt,0))                 ; get valid ones only
  . new name s name=$p(^DIPT(dipt,0),U)
  . new file s file=$p(^DIPT(dipt,0),U,4)
  . ;
+ . D INITEASY^XTMLOG("C","WARN")
  . ; debug
  . ; b:name="ZBJM FEE BASIS LIST"
  . ; debug
@@ -162,6 +163,8 @@ DIPTCOL(outputData) ; [Private] Print Template Data Collection
  ... new fieldData set fieldData=$p(lineContents,"~",fieldDataIndex)
  ... quit:fieldData=""
  ... n fields s fields=$p(fieldData,";")
+ ... quit:fields=""
+ ... quit:fields=" "
  ... ;
  ... ; analyze the fields
  ... ;
@@ -174,7 +177,7 @@ DIPTCOL(outputData) ; [Private] Print Template Data Collection
  ... n fieldIndex f fieldIndex=1:1:$l(fields,",") do  q:'fieldsUpright
  .... n field s field=$p(fields,",",fieldIndex)
  .... i field'=+field!(field<0) s fieldsUpright=0
- ... i fieldsUpright quit
+ ... i fieldsUpright D DEBUG^XTMLOG("Qutting since upright","name,file,fieldData") quit
  ... ;
  ... ; Exclude transition lines
  ... ; We are not interested in the lines that switch files (e.g. in 52: 'PROVIDER:')
@@ -183,24 +186,33 @@ DIPTCOL(outputData) ; [Private] Print Template Data Collection
  .... n field s field=$p(fields,",",fieldIndex)
  .... n nextField s nextField=$p(fields,",",fieldIndex+1)
  .... i $e(nextField)=U set ignoreTransition=1 quit
- ... q:ignoreTransition
+ ... i ignoreTransition D DEBUG^XTMLOG("Quitting due to context transistion with no fields","name,file,fieldData") quit
  ... ;
- ... ; exclude print only fields
- ... ; also find M code fields
+ ... ; If zpiece is defined, then we have a COMPUTED EXPRESSION or M code
+ ... n Zpiece s Zpiece=0
+ ... n i f i=1:1:$l(fieldData,";") i $p(fieldData,";",i)="Z" s Zpiece=i quit
+ ... ;
+ ... ; exclude print only fields (quoted values, or literal $C)
  ... n printOnlyField s printOnlyField=0
- ... n fieldIsMCode s fieldIsMCode=0
- ... n fieldIndex f fieldIndex=1:1:$l(fields,",") do  q:printOnlyField  q:fieldIsMCode
+ ... i 'Zpiece n fieldIndex f fieldIndex=1:1:$l(fields,",") do  q:printOnlyField
  .... n field s field=$p(fields,",",fieldIndex)
- .... n extField s extField=$p(fields,",",fieldIndex,99)
- .... d  q:fieldIsMCode
- ..... n X s X=extField D ^DIM
- ..... i $D(X) s fieldIsMCode=1 d
- ...... s fieldIsMCode("MCode")=extField
- ...... s fieldIsMCode("nonMCode")=$p(fields,extField)
- ...... s $e(fieldIsMCode("nonMCode"),$l(fieldIsMCode("nonMCode")))="" ; remove comma
- .... ;
- .... i $e(field)="""",$e(field,$l(field))="""" s printOnlyField=1
- ... i printOnlyField quit
+ .... i +field=field quit  ; numeric -- quit -- not a literal
+ .... i $e(field)="""" s printOnlyField=1
+ .... i $e(field,1,5)="W $C(" s printOnlyField=1
+ ... i printOnlyField d DEBUG^XTMLOG("Quitting for printOnlyField","name,file,fieldData,printOnlyField") quit
+ ... ;
+ ...  ; This can be a "hidden" M field masqurading
+ ... n isNonTradMCode s isNonTradMCode=0
+ ... if 'Zpiece do
+ .... n p1 s p1=$p(fields,",")
+ .... i +p1=p1 quit  ; Just a normal field
+ .... N X S X=$P(fields,";") D ^DIM
+ .... I $D(X) s isNonTradMCode=1
+ .... D WARN^XTMLOG("Treating Print Field as M code","file,fieldData")
+ .... set mCodeData(+file,line)=X
+ ... ;
+ ... ; Don't process any further if non-Traditional M code
+ ... quit:isNonTradMCode
  ... ;
  ... ; Now, process non-M code fields
  ... ; Best template to test this with: MAGV-PAT-QUERY
@@ -208,72 +220,84 @@ DIPTCOL(outputData) ; [Private] Print Template Data Collection
  ... ; We only want the last entry in the pointerFile chain to file the data if there
  ... ; is a field we want to grab
  ... n pointerFile s pointerFile=0
- ... if 'fieldIsMCode n fieldIndex f fieldIndex=1:1:$l(fields,",") do
+ ... if 'Zpiece n fieldIndex f fieldIndex=1:1:$l(fields,",") do
  .... n field s field=$p(fields,",",fieldIndex)
  .... n nextField s nextField=$p(fields,",",fieldIndex+1)
- .... i field<0 s pointerFile=-field
- .... i field>0,'pointerFile quit
- .... i +field'=field w "WARNING: parsing error field: "_name," ",file," ",field,! quit
- .... i +pointerFile'=pointerFile w "WARNING: parsing error pointerFile: "_name," ",file," ",field,! quit
+ .... i field<0 s pointerFile=-field quit
+ .... i field>0,'pointerFile quit  ; field in original file. We are not interested
+ .... d ASSERT(+pointerFile=pointerFile)
+ .... d ASSERT(+field=field)
+ .... d INFO^XTMLOG("Num Parsed as:","fieldData,pointerFile,field")
  .... i field>0,pointerFile s outputData(file,pointerFile,field)=dipt_U_name
+ ... if 'Zpiece quit  ; can't quit on the for line above
  ... ;
- ... ;
- ... ; Now, process M code fields.
+ ... ; Now, process M code/Copmputed code fields.
  ... new exitEarly set exitEarly=0
- ... if fieldIsMCode do
- .... ; debug
- .... ; b:name="ZBJM FEE BASIS LIST"
- .... ; debug
- .... ; The file number for the M code operation
- .... n mCodeContext s mCodeContext=file ; The default
- .... n fileField,fileFieldIndex
- .... i fieldIsMCode("nonMCode")]"" f fileFieldIndex=1:1:$l(fieldIsMCode("nonMCode"),",") do
- ..... s fileField=$p(fieldIsMCode("nonMCode"),",",fileFieldIndex)
- ..... ; 
- ..... ; Relational navigation
- ..... i fileField<0 s mCodeContext=-fileField quit
- ..... ; 
- ..... ; Subfile processing. Move context to subfile
- ..... q:mCodeContext=""
- ..... i '$d(^DD(mCodeContext,fileField,0)) set exitEarly=1 do  quit  ; doesn't exist!
- ...... w "^DD("_mCodeContext_","_fileField_",0) does not exist",!
- ..... i fileField>0,$P(^DD(mCodeContext,fileField,0),U,2) s mCodeContext=+$P(^DD(mCodeContext,fileField,0),U,2) quit
- .... q:exitEarly
- .... ; debug
- .... ; w mCodeContext,!
- .... ; debug
- .... 
- .... ; Grab the COMPUTED EXPRESSION using the Z piece Index + 1
- .... n Zpiece
- .... n i f i=1:1:$l(fieldData,";") i $p(fieldData,";",i)="Z" s Zpiece=i quit
- .... i '$get(Zpiece) quit  ; field does not have definition (e.g. CAPTIONED template)
- .... ;
- .... ; Get the potentially COMPUTED EXPRESSION code for this field
- .... n potComputedCode s potComputedCode=$p(fieldData,";",Zpiece+1)
- .... s potComputedCode=$e(potComputedCode,2,$l(potComputedCode)-1)
- .... ;
- .... ; Is it the same (after removing the quotes) as the MCode?
- .... ; If so, then this is not a computed expression
- .... ; We can abandon hope of finding what field it refers to.
- .... i potComputedCode=fieldIsMCode("MCode") quit
- ....
- .... ; At this point, we think it's a computed expression.
- .... ; Lets try to to see 
- .... n X
- .... d EXPR^DICOMP(mCodeContext,"dmFITSL",potComputedCode)
- .... i '$d(X) w "Can't resolve "_fieldData_" into fields (context "_mCodeContext_", name "_name_")",! quit
- .... i X("USED")="" quit  ; not an expression that uses fields (NOW, PAGE)
- .... ;
- .... n pairs,pair f pairs=1:1:$l(X("USED"),";") d
- ..... s pair=$p(X("USED"),";",pairs)
- ..... n thisFile  s thisFile=$p(pair,U,1)
- ..... n thisField s thisField=$p(pair,U,2)
- ..... i thisFile=file quit
- ..... s outputData(file,thisFile,thisField)=dipt_U_name
+ ... ;
+ ... ; We are really interested in capturing the computed field information
+ ... ; (Z piece stuff only)
+ ... ; Calculate the correct context for the Computed Expression
+ ... n mCodeContext s mCodeContext=file ; The default
+ ... n mCode s mCode=""
+ ... n fileField,fileFieldIndex
+ ... f fileFieldIndex=1:1:$l(fields,",") do  q:mCode]""
+ .... s fileField=$p(fields,",",fileFieldIndex)
+ .... i fileField'=+fileField s mCode=$p(fields,",",fileFieldIndex,99) quit
+ .... ; 
+ .... ; Relational navigation
+ .... i fileField<0 s mCodeContext=-fileField quit
+ .... ; 
+ .... ; Subfile processing. Move context to subfile
+ .... i '$d(^DD(mCodeContext,fileField,0)) set exitEarly=1 do  quit  ; doesn't exist!
+ ..... D WARN^XTMLOG("^DD("_mCodeContext_","_fileField_",0) does not exist")
+ .... i fileField>0,$P(^DD(mCodeContext,fileField,0),U,2) s mCodeContext=+$P(^DD(mCodeContext,fileField,0),U,2) quit
+ ... q:exitEarly
+ ... d DEBUG^XTMLOG("Context for "_fieldData_" is "_mCodeContext_" and M code is "_mCode)
+ ... ;
+ ... ; debug
+ ... ; w mCodeContext,!
+ ... ; debug
+ ... ;
+ ... ;
+ ... ; Get the potentially COMPUTED EXPRESSION code for this field
+ ... n potComputedCode s potComputedCode=$p(fieldData,";",Zpiece+1)
+ ... s potComputedCode=$e(potComputedCode,2,$l(potComputedCode)-1)
+ ... ;
+ ... ; If M Code is broken up, put it back together
+ ... i $f(mCode,"X DXS") do
+ .... n startdxs s startdxs=$f(mCode,"DXS")-3
+ .... n enddxs s enddxs=$f(mCode,")",startdxs)-1
+ .... n dxsString s dxsString=$e(mCode,startdxs,enddxs)
+ .... n s1,s2
+ .... s s1=$qs(dxsString,1)
+ .... s s2=$qs(dxsString,2)
+ .... n dxsCode s dxsCode=^DIPT(dipt,"DXS",s1,s2)
+ .... n % s %("X "_dxsString)=dxsCode
+ .... s mCode=$$REPLACE^XLFSTR(mCode,.%)
  ... ; 
- ... ; i fileNamePrint w file," ",name,! s fileNamePrint=0
- ... ; write fieldData,!
- . ; i 'fileNamePrint zwrite:$d(outputData) outputData(file,*) w !!
+ ... ; Is it the same (after removing the quotes) as the MCode?
+ ... ; If so, then this is not a computed expression
+ ... ; We can abandon hope of finding what field it refers to.
+ ... i potComputedCode=mCode do  quit
+ .... set mCodeData(+file,line)=mCode
+ .... d INFO^XTMLOG(fieldData_" in "_file_" considered to be M code")
+ ... 
+ ... ; debug
+ ...
+ ... ; At this point, we think it's a computed expression.
+ ... ; Lets try to to see 
+ ... n X
+ ... d EXPR^DICOMP(mCodeContext,"dmFITSL",potComputedCode)
+ ... i '$d(X) D ERROR^XTMLOG("Can't resolve "_fieldData_" into fields (context "_mCodeContext_", name "_name_")") quit
+ ... i X("USED")="" quit  ; not an expression that uses fields (NOW, PAGE)
+ ... ;
+ ... n pairs,pair f pairs=1:1:$l(X("USED"),";") d
+ .... s pair=$p(X("USED"),";",pairs)
+ .... n thisFile  s thisFile=$p(pair,U,1)
+ .... n thisField s thisField=$p(pair,U,2)
+ .... i thisFile=file quit
+ .... s outputData(file,thisFile,thisField)=dipt_U_name
+ D ENDLOG^XTMLOG()
  quit
  ;
 DIPTOUT(outputData,outputPath,outputFile) ; [Private] Print Template Data Output
@@ -298,3 +322,5 @@ PARENT(subfile) ; [Private] Find out who my parent is
  ; WARNING: Recursive algorithm
  if $data(^DD(subfile,0,"UP")) quit $$PARENT(^("UP"))
  quit subfile
+ ;
+ASSERT(x) i 'x s $EC=",u-assert,"
