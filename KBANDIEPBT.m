@@ -1,4 +1,4 @@
-KBANDIEPBT ; OSE/SMH - Input, Print, and Sort Template Analysis;2018-01-22  7:06 PM
+KBANDIEPBT ; OSE/SMH - Input, Print, and Sort Template Analysis;2018-01-29  10:10 AM
  ;;0.1;OSEHRA;
  ;
  ; This routine finds non-self files that are pointed to by a template
@@ -149,6 +149,11 @@ DIPTCOL(outputData) ; [Private] Print Template Data Collection
  . quit:'$data(^DIPT(dipt,0))                 ; get valid ones only
  . new name s name=$p(^DIPT(dipt,0),U)
  . new file s file=$p(^DIPT(dipt,0),U,4)
+ . ;
+ . ; debug
+ . ; b:name="ZBJM FEE BASIS LIST"
+ . ; debug
+ . ;
  . ; for each field
  . new fileNamePrint set fileNamePrint=1
  . new line f line=0:0 s line=$o(^DIPT(dipt,"F",line)) q:'line  do
@@ -163,11 +168,22 @@ DIPTCOL(outputData) ; [Private] Print Template Data Collection
  ... ; See if we have a multiple navigation. These are noted in the first piece
  ... ; as a series of numbers like 50,1,2,5...
  ... ; don't process these any further if we find them
+ ... ; We don't process them as they mean we don't branch out to other files
+ ... ; --we just trace our own file down.
  ... n fieldsUpright s fieldsUpright=1
  ... n fieldIndex f fieldIndex=1:1:$l(fields,",") do  q:'fieldsUpright
  .... n field s field=$p(fields,",",fieldIndex)
  .... i field'=+field!(field<0) s fieldsUpright=0
  ... i fieldsUpright quit
+ ... ;
+ ... ; Exclude transition lines
+ ... ; We are not interested in the lines that switch files (e.g. in 52: 'PROVIDER:')
+ ... n ignoreTransition s ignoreTransition=0
+ ... n fieldIndex f fieldIndex=1:1:$l(fields,",") do  q:ignoreTransition
+ .... n field s field=$p(fields,",",fieldIndex)
+ .... n nextField s nextField=$p(fields,",",fieldIndex+1)
+ .... i $e(nextField)=U set ignoreTransition=1 quit
+ ... q:ignoreTransition
  ... ;
  ... ; exclude print only fields
  ... ; also find M code fields
@@ -192,22 +208,42 @@ DIPTCOL(outputData) ; [Private] Print Template Data Collection
  ... ; We only want the last entry in the pointerFile chain to file the data if there
  ... ; is a field we want to grab
  ... n pointerFile s pointerFile=0
- ... n ignoreTransition s ignoreTransition=0
- ... if 'fieldIsMCode n fieldIndex f fieldIndex=1:1:$l(fields,",") do  q:ignoreTransition
+ ... if 'fieldIsMCode n fieldIndex f fieldIndex=1:1:$l(fields,",") do
  .... n field s field=$p(fields,",",fieldIndex)
  .... n nextField s nextField=$p(fields,",",fieldIndex+1)
  .... i field<0 s pointerFile=-field
- .... i $e(nextField)=U set ignoreTransition=1 quit
  .... i field>0,'pointerFile quit
+ .... i +field'=field w "WARNING: parsing error field: "_name," ",file," ",field,! quit
+ .... i +pointerFile'=pointerFile w "WARNING: parsing error pointerFile: "_name," ",file," ",field,! quit
  .... i field>0,pointerFile s outputData(file,pointerFile,field)=dipt_U_name
  ... ;
  ... ;
  ... ; Now, process M code fields.
+ ... new exitEarly set exitEarly=0
  ... if fieldIsMCode do
+ .... ; debug
+ .... ; b:name="ZBJM FEE BASIS LIST"
+ .... ; debug
  .... ; The file number for the M code operation
- .... n mCodeContext s mCodeContext=$p(fieldIsMCode("nonMCode"),",",$l(fieldIsMCode("nonMCode"),","))
- .... i mCodeContext="" s mCodeContext=file
- .... i mCodeContext<0 s mCodeContext=-mCodeContext ; switch sign if relational jump (which it always is in this context)
+ .... n mCodeContext s mCodeContext=file ; The default
+ .... n fileField,fileFieldIndex
+ .... i fieldIsMCode("nonMCode")]"" f fileFieldIndex=1:1:$l(fieldIsMCode("nonMCode"),",") do
+ ..... s fileField=$p(fieldIsMCode("nonMCode"),",",fileFieldIndex)
+ ..... ; 
+ ..... ; Relational navigation
+ ..... i fileField<0 s mCodeContext=-fileField quit
+ ..... ; 
+ ..... ; Subfile processing. Move context to subfile
+ ..... q:mCodeContext=""
+ ..... i '$d(^DD(mCodeContext,fileField,0)) set exitEarly=1 do  quit  ; doesn't exist!
+ ...... w "^DD("_mCodeContext_","_fileField_",0) does not exist",!
+ ..... i fileField>0,$P(^DD(mCodeContext,fileField,0),U,2) s mCodeContext=+$P(^DD(mCodeContext,fileField,0),U,2) quit
+ .... q:exitEarly
+ .... ; debug
+ .... ; w mCodeContext,!
+ .... ; debug
+ .... 
+ .... ; Grab the COMPUTED EXPRESSION using the Z piece Index + 1
  .... n Zpiece
  .... n i f i=1:1:$l(fieldData,";") i $p(fieldData,";",i)="Z" s Zpiece=i quit
  .... i '$get(Zpiece) quit  ; field does not have definition (e.g. CAPTIONED template)
@@ -225,7 +261,7 @@ DIPTCOL(outputData) ; [Private] Print Template Data Collection
  .... ; Lets try to to see 
  .... n X
  .... d EXPR^DICOMP(mCodeContext,"dmFITSL",potComputedCode)
- .... i '$d(X) w "Can't resolve "_fieldData_" into fields",! quit
+ .... i '$d(X) w "Can't resolve "_fieldData_" into fields (context "_mCodeContext_", name "_name_")",! quit
  .... i X("USED")="" quit  ; not an expression that uses fields (NOW, PAGE)
  .... ;
  .... n pairs,pair f pairs=1:1:$l(X("USED"),";") d
