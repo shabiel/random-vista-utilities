@@ -1,4 +1,4 @@
-KBANDIEPBT ; OSE/SMH - Input, Print, and Sort Template Analysis;2018-01-29  4:24 PM
+KBANDIEPBT ; OSE/SMH - Input, Print, and Sort Template Analysis;2018-02-01  10:50 AM
  ;;0.1;OSEHRA;
  ;
  ; This routine finds non-self files that are pointed to by a template
@@ -33,8 +33,8 @@ DIBTCOL(outputData) ; [Private] Sort Template Data Collection
  . ; walk through each field
  . n line f line=0:0 s line=$order(^DIBT(dibt,2,line)) quit:'line  do
  .. n lineData ; We have some variances on how the data is stored (lines below)
- .. i $d(^(line))#2   s lineData=^DIBT(dibt,2,line)
- .. i $d(^(line,0))#2 s lineData=^DIBT(dibt,2,line,0)
+ .. i $d(^(line))#2   s lineData=^DIBT(dibt,2,line) ; **NAKED**
+ .. i $d(^(line,0))#2 s lineData=^DIBT(dibt,2,line,0) ; **NAKED**
  .. ;
  .. ; some vital data
  .. n lineFile s lineFile=$piece(lineData,U)
@@ -87,7 +87,7 @@ DIBTOUT(outputData,outputPath,outputFile) ; [Private] Sort Template Data Output
  d CLOSE^%ZISH("file1")
  quit
  ;
-DIETCOL(outputData) ; [Private] Input Template Data Collection
+DIETCOL(outputData,mCodeData) ; [Private] Input Template Data Collection
  ; for each template
  ; s outputData(file,thisFile,thisField)=dibt_U_name
  n diet f diet=0:0 s diet=$o(^DIE(diet)) q:'diet  do
@@ -98,17 +98,20 @@ DIETCOL(outputData) ; [Private] Input Template Data Collection
  . ; for each file in the input template
  . n line f line=0:0 s line=$o(^DIE(diet,"DR",line)) q:line>98  q:line=""  do  ; 99 is reserved for some compiled code
  .. n lineFile f lineFile=0:0 s lineFile=$o(^DIE(diet,"DR",line,lineFile)) q:'lineFile  q:(lineFile'=+lineFile)  do
- ... if lineFile=file quit  ; DR file same as our file; not interested
- ... if $$PARENT(lineFile)=file quit  ; ditto, for parent
  ... n fields s fields=^DIE(diet,"DR",line,lineFile)
  ... n fieldIndex,field f fieldIndex=1:1:$l(fields,";") do
  .... s field=$piece(fields,";",fieldIndex)
- .... ;
  .... ; various tests for the field
  .... i field="" quit       ; empty field. Can happen!
+ .... ; 
+ .... ; FROM X+2^DIA3: Get M field and check it
+ .... N X S X=field
+ .... i X'?.E1":" S X=$S(X["//^":$P(X,"//^",2),1:X),X=$S(X[";":$P(X,";"),1:X) D ^DIM
+ .... i $d(X) s mCodeData(lineFile,line)=X quit
  .... ;
- .... n X s X=field d ^DIM  ; is it M code?
- .... i $d(X) quit          ; line is M code
+ .... ; We analyzed the M code; now we just want the dependencies
+ .... if lineFile=file quit  ; DR file same as our file; not interested
+ .... if $$PARENT(lineFile)=file quit  ; ditto, for parent
  .... ;
  .... ; range like .01:5
  .... i $l(field,":")=2,(+$p(field,":"))=$p(field,":") do  quit
@@ -150,7 +153,7 @@ DIPTCOL(outputData,mCodeData) ; [Private] Print Template Data Collection
  . new name s name=$p(^DIPT(dipt,0),U)
  . new file s file=$p(^DIPT(dipt,0),U,4)
  . ;
- . D INITEASY^XTMLOG("C","WARN")
+ . d:$t(^XTMLOG)]"" INITEASY^XTMLOG("C","WARN")
  . ; debug
  . ; b:name="ZBJM FEE BASIS LIST"
  . ; debug
@@ -177,7 +180,7 @@ DIPTCOL(outputData,mCodeData) ; [Private] Print Template Data Collection
  ... n fieldIndex f fieldIndex=1:1:$l(fields,",") do  q:'fieldsUpright
  .... n field s field=$p(fields,",",fieldIndex)
  .... i field'=+field!(field<0) s fieldsUpright=0
- ... i fieldsUpright D DEBUG^XTMLOG("Qutting since upright","name,file,fieldData") quit
+ ... i fieldsUpright D:$t(^XTMLOG)]"" DEBUG^XTMLOG("Qutting since upright","name,file,fieldData") quit
  ... ;
  ... ; Exclude transition lines
  ... ; We are not interested in the lines that switch files (e.g. in 52: 'PROVIDER:')
@@ -186,7 +189,7 @@ DIPTCOL(outputData,mCodeData) ; [Private] Print Template Data Collection
  .... n field s field=$p(fields,",",fieldIndex)
  .... n nextField s nextField=$p(fields,",",fieldIndex+1)
  .... i $e(nextField)=U set ignoreTransition=1 quit
- ... i ignoreTransition D DEBUG^XTMLOG("Quitting due to context transistion with no fields","name,file,fieldData") quit
+ ... i ignoreTransition D:$t(^XTMLOG)]"" DEBUG^XTMLOG("Quitting due to context transistion with no fields","name,file,fieldData") quit
  ... ;
  ... ; If zpiece is defined, then we have a COMPUTED EXPRESSION or M code
  ... n Zpiece s Zpiece=0
@@ -199,7 +202,7 @@ DIPTCOL(outputData,mCodeData) ; [Private] Print Template Data Collection
  .... i +field=field quit  ; numeric -- quit -- not a literal
  .... i $e(field)="""" s printOnlyField=1
  .... i $e(field,1,5)="W $C(" s printOnlyField=1
- ... i printOnlyField d DEBUG^XTMLOG("Quitting for printOnlyField","name,file,fieldData,printOnlyField") quit
+ ... i printOnlyField d:$t(^XTMLOG)]"" DEBUG^XTMLOG("Quitting for printOnlyField","name,file,fieldData,printOnlyField") quit
  ... ;
  ...  ; This can be a "hidden" M field masqurading
  ... n isNonTradMCode s isNonTradMCode=0
@@ -208,7 +211,7 @@ DIPTCOL(outputData,mCodeData) ; [Private] Print Template Data Collection
  .... i +p1=p1 quit  ; Just a normal field
  .... N X S X=$P(fields,";") D ^DIM
  .... I $D(X) s isNonTradMCode=1
- .... D WARN^XTMLOG("Treating Print Field as M code","file,fieldData")
+ .... D:$t(^XTMLOG)]"" WARN^XTMLOG("Treating Print Field as M code","file,fieldData")
  .... set mCodeData(+file,line)=X
  ... ;
  ... ; Don't process any further if non-Traditional M code
@@ -227,7 +230,7 @@ DIPTCOL(outputData,mCodeData) ; [Private] Print Template Data Collection
  .... i field>0,'pointerFile quit  ; field in original file. We are not interested
  .... d ASSERT(+pointerFile=pointerFile)
  .... d ASSERT(+field=field)
- .... d INFO^XTMLOG("Num Parsed as:","fieldData,pointerFile,field")
+ .... d:$t(^XTMLOG)]"" INFO^XTMLOG("Num Parsed as:","fieldData,pointerFile,field")
  .... i field>0,pointerFile s outputData(file,pointerFile,field)=dipt_U_name
  ... if 'Zpiece quit  ; can't quit on the for line above
  ... ;
@@ -249,10 +252,10 @@ DIPTCOL(outputData,mCodeData) ; [Private] Print Template Data Collection
  .... ; 
  .... ; Subfile processing. Move context to subfile
  .... i '$d(^DD(mCodeContext,fileField,0)) set exitEarly=1 do  quit  ; doesn't exist!
- ..... D WARN^XTMLOG("^DD("_mCodeContext_","_fileField_",0) does not exist")
+ ..... D:$t(^XTMLOG)]"" WARN^XTMLOG("^DD("_mCodeContext_","_fileField_",0) does not exist")
  .... i fileField>0,$P(^DD(mCodeContext,fileField,0),U,2) s mCodeContext=+$P(^DD(mCodeContext,fileField,0),U,2) quit
  ... q:exitEarly
- ... d DEBUG^XTMLOG("Context for "_fieldData_" is "_mCodeContext_" and M code is "_mCode)
+ ... d:$t(^XTMLOG)]"" DEBUG^XTMLOG("Context for "_fieldData_" is "_mCodeContext_" and M code is "_mCode)
  ... ;
  ... ; debug
  ... ; w mCodeContext,!
@@ -280,7 +283,7 @@ DIPTCOL(outputData,mCodeData) ; [Private] Print Template Data Collection
  ... ; We can abandon hope of finding what field it refers to.
  ... i potComputedCode=mCode do  quit
  .... set mCodeData(+file,line)=mCode
- .... d INFO^XTMLOG(fieldData_" in "_file_" considered to be M code")
+ .... d:$t(^XTMLOG)]"" INFO^XTMLOG(fieldData_" in "_file_" considered to be M code")
  ... 
  ... ; debug
  ...
@@ -288,7 +291,7 @@ DIPTCOL(outputData,mCodeData) ; [Private] Print Template Data Collection
  ... ; Lets try to to see 
  ... n X
  ... d EXPR^DICOMP(mCodeContext,"dmFITSL",potComputedCode)
- ... i '$d(X) D ERROR^XTMLOG("Can't resolve "_fieldData_" into fields (context "_mCodeContext_", name "_name_")") quit
+ ... i '$d(X) D:$t(^XTMLOG)]"" ERROR^XTMLOG("Can't resolve "_fieldData_" into fields (context "_mCodeContext_", name "_name_")") quit
  ... i X("USED")="" quit  ; not an expression that uses fields (NOW, PAGE)
  ... ;
  ... n pairs,pair f pairs=1:1:$l(X("USED"),";") d
@@ -297,7 +300,7 @@ DIPTCOL(outputData,mCodeData) ; [Private] Print Template Data Collection
  .... n thisField s thisField=$p(pair,U,2)
  .... i thisFile=file quit
  .... s outputData(file,thisFile,thisField)=dipt_U_name
- D ENDLOG^XTMLOG()
+ D:$t(^XTMLOG)]"" ENDLOG^XTMLOG()
  quit
  ;
 DIPTOUT(outputData,outputPath,outputFile) ; [Private] Print Template Data Output
@@ -318,9 +321,97 @@ DIPTOUT(outputData,outputPath,outputFile) ; [Private] Print Template Data Output
  d CLOSE^%ZISH("file1")
  quit
  ;
+DIETM(mCodeData) ; [Public] Collect M code fileds from all input templates
+ n diet f diet=0:0 s diet=$o(^DIE(diet)) q:'diet  do
+ . quit:'$data(^DIE(diet,0))                 ; get valid ones only
+ . new name s name=$p(^DIE(diet,0),U)
+ . new file s file=$p(^DIE(diet,0),U,4)
+ . ;
+ . ; for each file in the input template
+ . n line f line=0:0 s line=$o(^DIE(diet,"DR",line)) q:line>98  q:line=""  do  ; 99 is reserved for some compiled code
+ .. n lineFile f lineFile=0:0 s lineFile=$o(^DIE(diet,"DR",line,lineFile)) q:'lineFile  q:(lineFile'=+lineFile)  do
+ ... n fields s fields=^DIE(diet,"DR",line,lineFile)
+ ... n fieldIndex,field f fieldIndex=1:1:$l(fields,";") do
+ .... s field=$piece(fields,";",fieldIndex)
+ .... ; various tests for the field
+ .... i field="" quit       ; empty field. Can happen!
+ .... ; 
+ .... ; FROM X+2^DIA3: Get M field and check it
+ .... N X S X=field
+ .... i X'?.E1":" S X=$S(X["//^":$P(X,"//^",2),1:X),X=$S(X[";":$P(X,";"),1:X) D ^DIM
+ .... i $d(X) s mCodeData(lineFile,line)=X
+ quit
+ ;
+DIPTM(mCodeData) ; [Public] Collect M code fields from all print templates
+ n dipt f dipt=0:0 s dipt=$o(^DIPT(dipt)) q:'dipt  d
+ . quit:'$data(^DIPT(dipt,0))                 ; get valid ones only
+ . new name s name=$p(^DIPT(dipt,0),U)
+ . new file s file=$p(^DIPT(dipt,0),U,4)
+ . ;
+ . ; for each field
+ . new fileNamePrint set fileNamePrint=1
+ . new line f line=0:0 s line=$o(^DIPT(dipt,"F",line)) q:'line  do
+ .. new lineContents s lineContents=^DIPT(dipt,"F",line)
+ .. new fieldDataIndex for fieldDataIndex=1:1:$l(lineContents,"~") do
+ ... new fieldData set fieldData=$p(lineContents,"~",fieldDataIndex)
+ ... quit:fieldData=""
+ ... n fields s fields=$p(fieldData,";")
+ ... quit:fields=""
+ ... quit:fields=" "
+ ... ;
+ ... ; If zpiece is defined, then we have a COMPUTED EXPRESSION or M code
+ ... n Zpiece s Zpiece=0
+ ... n i f i=1:1:$l(fieldData,";") i $p(fieldData,";",i)="Z" s Zpiece=i quit
+ ... ;
+ ... ; This can be a "hidden" M field masqurading -- the entire line is M code
+ ... ; NB: This is rare, but print templates support that.
+ ... n isNonTradMCode s isNonTradMCode=0
+ ... if 'Zpiece do
+ .... n p1 s p1=$p(fields,",")
+ .... i +p1=p1 quit  ; Just a normal field
+ .... N X S X=$P(fields,";") D ^DIM
+ .... I $D(X) s isNonTradMCode=1,mCodeData(+file,line)=X quit
+ ... ;
+ ... q:isNonTradMCode  ; We already have M code. Quit.
+ ... ;
+ ... q:'Zpiece  ; Straight field
+ ... ;
+ ... ; extract compiled code from file/subfile references
+ ... n mCode s mCode=""
+ ... n fileField,fileFieldIndex
+ ... f fileFieldIndex=1:1:$l(fields,",") do  q:mCode]""
+ .... s fileField=$p(fields,",",fileFieldIndex)
+ .... i fileField'=+fileField s mCode=$p(fields,",",fileFieldIndex,99)
+ ... ;
+ ... i mCode="" quit  ; no compiled code in this field
+ ... ;
+ ... ; If zpiece is defined, see if computed expression or M code
+ ... ; Get the potentially COMPUTED EXPRESSION code for this field
+ ... n potComputedCode s potComputedCode=$p(fieldData,";",Zpiece+1)
+ ... s potComputedCode=$e(potComputedCode,2,$l(potComputedCode)-1)
+ ... ;
+ ... ; If M Code is broken up, put it back together
+ ... i $f(mCode,"X DXS") do
+ .... n startdxs s startdxs=$f(mCode,"DXS")-3
+ .... n enddxs s enddxs=$f(mCode,")",startdxs)-1
+ .... n dxsString s dxsString=$e(mCode,startdxs,enddxs)
+ .... n s1,s2
+ .... s s1=$qs(dxsString,1)
+ .... s s2=$qs(dxsString,2)
+ .... n dxsCode s dxsCode=^DIPT(dipt,"DXS",s1,s2)
+ .... n % s %("X "_dxsString)=dxsCode
+ .... s mCode=$$REPLACE^XLFSTR(mCode,.%)
+ ... ; 
+ ... ; Is it the same (after removing the quotes) as the MCode?
+ ... ; If so, then this is not a computed expression
+ ... i potComputedCode=mCode do  quit
+ .... set mCodeData(+file,line)=mCode
+ quit
+ ;
 PARENT(subfile) ; [Private] Find out who my parent is
  ; WARNING: Recursive algorithm
  if $data(^DD(subfile,0,"UP")) quit $$PARENT(^("UP"))
  quit subfile
  ;
 ASSERT(x) i 'x s $EC=",u-assert,"
+ ;
