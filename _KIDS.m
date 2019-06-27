@@ -1,9 +1,9 @@
-%KIDS ;GFT/MSC  KIDS UTILITIES;2014-05-21  3:14 PM
+%KIDS ;GFT/MSC  KIDS UTILITIES;23OCT2014
  ;;1.6;MSC;**MSC,1600**;
+ ; ; Written by George Timson
  ;
- ; Written by George Timson
- ; 
  ; Please send back any bugs to hardhats@googlegroups.com
+ ;
  ;
  ;
 COMPARE ;COMPARE TWO KIDS FILES
@@ -204,7 +204,10 @@ ROUTINE ;
  S DIC=9.8,DIC(0)="AEQFM",DIC("A")="PICK A ROUTINE WHOSE BUILDS YOU WANT TO SEE: "
  D ^DIC Q:Y'>0  S D0=+Y
  S DICMX="W !,X S Y=$P(^(0),U,4) X ^DD(""DD"") W ?40,Y"
- N XPDNAME,D S XPDNAME=$P($G(^DIC(9.8,D0,0)),U) I XPDNAME]"" F D=0:0 S D=$O(^XPD(9.6,D)) Q:'D  I $D(^(D,"KRN",9.8,"NM","B",XPDNAME)) N D0 S D0=D,X=$P(^XPD(9.6,D,0),U) X DICMX Q:'$D(D)
+ N XPDNAME,D,YES,I S XPDNAME=$P($G(^DIC(9.8,D0,0)),U) Q:XPDNAME="" 
+ N D0 F D=0:0 S D=$O(^XPD(9.6,D)) Q:'D  S YES=0 D  I YES S D0=D,X=$P(^XPD(9.6,D,0),U) X DICMX Q:'$D(D)
+ .F I="INI","INIT","PRE","PRET" I U_$G(^XPD(9.6,D,I))[(U_XPDNAME) S YES=1 Q
+ .I $D(^XPD(9.6,D,"KRN",9.8,"NM","B",XPDNAME)) S YES=1
  Q
  ;
  ;
